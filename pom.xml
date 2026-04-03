@@ -10,8 +10,7 @@
 
   <properties>
     <compiler-plugin.version>3.13.0</compiler-plugin.version>
-    <!-- Java 21 is required for Task 7 (Thread.ofVirtual()), but only Java 17 is currently installed -->
-    <maven.compiler.release>17</maven.compiler.release>
+    <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <quarkus.platform.version>3.9.5</quarkus.platform.version>
     <surefire-plugin.version>3.2.5</surefire-plugin.version>
