@@ -69,6 +69,10 @@ public class TerminalWebSocket {
                     }
                 }
                 if (!contentLines.isEmpty()) {
+                    // Restore one trailing space on the last line (the current prompt)
+                    // so cursor is positioned correctly after "$ " for user input.
+                    var last = contentLines.size() - 1;
+                    contentLines.set(last, contentLines.get(last) + " ");
                     var history = String.join("\r\n", contentLines) + "\u001B[0m";
                     connection.sendTextAndAwait(history);
                 }
