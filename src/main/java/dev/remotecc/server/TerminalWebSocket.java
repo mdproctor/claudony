@@ -48,38 +48,9 @@ public class TerminalWebSocket {
         sessionNames.put(connection.id(), tmuxName);
 
         try {
-            // Create a named FIFO (pipe) for streaming pane output
-            new ProcessBuilder("mkfifo", fifoPath)
-                    .redirectErrorStream(true).start().waitFor();
-            fifoPaths.put(connection.id(), fifoPath);
-
-            // Virtual thread: reads from FIFO → sends to WebSocket
-            // Opening the FIFO for reading blocks until a writer connects (pipe-pane below)
-            Thread.ofVirtual().start(() -> {
-                try (var in = new BufferedInputStream(new FileInputStream(fifoPath))) {
-                    var buf = new byte[4096];
-                    int n;
-                    while ((n = in.read(buf)) != -1) {
-                        connection.sendTextAndAwait(new String(buf, 0, n));
-                    }
-                } catch (IOException e) {
-                    LOG.debugf("FIFO stream ended for session %s: %s", sessionId, e.getMessage());
-                }
-            });
-
-            // Connect pane output to the FIFO via pipe-pane.
-            // tmux runs: cat > /path/fifo
-            //   cat's stdin = pane output (tmux pipe-pane default direction)
-            //   cat's stdout = FIFO (shell redirection) → Java reads above
-            var p = new ProcessBuilder("tmux", "pipe-pane", "-t", tmuxName,
-                    "cat > " + fifoPath)
-                    .redirectErrorStream(true).start();
-            p.getInputStream().transferTo(OutputStream.nullOutputStream());
-            p.waitFor();
-
-            // Replay pane history so reconnecting users see previous output.
-            // capture-pane -p pads every line to the pane width with spaces —
-            // we strip trailing whitespace per line before sending to xterm.js.
+            // Step 1: Send history BEFORE pipe-pane starts to avoid race conditions.
+            // capture-pane -p pads lines to pane width — strip trailing whitespace,
+            // trim leading/trailing blank lines, collapse interior blanks to one.
             var cap = new ProcessBuilder("tmux", "capture-pane", "-t", tmuxName,
                     "-p", "-S", "-100")
                     .redirectErrorStream(false).start();
@@ -87,13 +58,10 @@ public class TerminalWebSocket {
             cap.waitFor();
             if (!raw.isBlank()) {
                 var lines = raw.split("\n", -1);
-                // Trim trailing blank lines
                 int end = lines.length - 1;
                 while (end >= 0 && lines[end].stripTrailing().isEmpty()) end--;
-                // Trim leading blank lines
                 int start = 0;
                 while (start <= end && lines[start].stripTrailing().isEmpty()) start++;
-                // Collapse consecutive interior blank lines to at most one
                 var sb = new StringBuilder();
                 boolean prevBlank = false;
                 for (int i = start; i <= end; i++) {
@@ -110,6 +78,31 @@ public class TerminalWebSocket {
                     connection.sendTextAndAwait(sb.toString());
                 }
             }
+
+            // Step 2: Set up FIFO + pipe-pane for live output streaming.
+            new ProcessBuilder("mkfifo", fifoPath)
+                    .redirectErrorStream(true).start().waitFor();
+            fifoPaths.put(connection.id(), fifoPath);
+
+            // Virtual thread: reads from FIFO → sends to WebSocket
+            Thread.ofVirtual().start(() -> {
+                try (var in = new BufferedInputStream(new FileInputStream(fifoPath))) {
+                    var buf = new byte[4096];
+                    int n;
+                    while ((n = in.read(buf)) != -1) {
+                        connection.sendTextAndAwait(new String(buf, 0, n));
+                    }
+                } catch (IOException e) {
+                    LOG.debugf("FIFO stream ended for session %s: %s", sessionId, e.getMessage());
+                }
+            });
+
+            // Connect pane output to FIFO via pipe-pane (cat bridges tmux → FIFO → Java)
+            var p = new ProcessBuilder("tmux", "pipe-pane", "-t", tmuxName,
+                    "cat > " + fifoPath)
+                    .redirectErrorStream(true).start();
+            p.getInputStream().transferTo(OutputStream.nullOutputStream());
+            p.waitFor();
 
         } catch (Exception e) {
             LOG.errorf("Failed to set up pipe for session '%s': %s", tmuxName, e.getMessage());
