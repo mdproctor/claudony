@@ -62,16 +62,12 @@ public class TerminalWebSocket {
                 while (end >= 0 && lines[end].stripTrailing().isEmpty()) end--;
                 int start = 0;
                 while (start <= end && lines[start].stripTrailing().isEmpty()) start++;
+                // Skip blank lines — they are tmux pane grid artifacts, not real output
                 var sb = new StringBuilder();
-                boolean prevBlank = false;
                 for (int i = start; i <= end; i++) {
                     var stripped = lines[i].stripTrailing();
-                    if (stripped.isEmpty()) {
-                        if (!prevBlank) sb.append("\r\n");
-                        prevBlank = true;
-                    } else {
+                    if (!stripped.isEmpty()) {
                         sb.append(stripped).append("\r\n");
-                        prevBlank = false;
                     }
                 }
                 if (!sb.isEmpty()) {
