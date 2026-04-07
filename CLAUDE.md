@@ -105,6 +105,7 @@ src/main/java/dev/remotecc/
 │   ├── TerminalWebSocket.java          — WebSocket /ws/{id}, pipe-pane + FIFO streaming
 │   ├── ServerStartup.java              — startup health checks, directory creation, tmux bootstrap
 │   └── auth/
+│       ├── ApiKeyService.java          — key resolution (config → file → generate), first-run banner
 │       ├── ApiKeyAuthMechanism.java    — X-Api-Key header auth (Agent→Server) + dev cookie
 │       ├── AuthResource.java           — /auth/register, /auth/login, /auth/dev-login
 │       ├── CredentialStore.java        — WebAuthn credential persistence (~/.remotecc/credentials.json)
@@ -166,7 +167,7 @@ remotecc.tmux-prefix=remotecc-
 remotecc.terminal=auto                   # auto|iterm2|none
 remotecc.default-working-dir=~/remotecc-workspace   # default dir for new sessions
 remotecc.credentials-file=~/.remotecc/credentials.json
-remotecc.agent.api-key=                  # required in production; set via env var
+remotecc.agent.api-key=                  # auto-generated on first server run; saved to ~/.remotecc/api-key
 # Production — must also set via env var (no default; random key = sessions lost on restart):
 # QUARKUS_HTTP_AUTH_SESSION_ENCRYPTION_KEY=<secret, >16 chars>
 ```
