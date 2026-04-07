@@ -1,6 +1,7 @@
 package dev.remotecc.server.auth;
 
 import dev.remotecc.config.RemoteCCConfig;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
@@ -33,6 +34,18 @@ public class ApiKeyService {
     //       no file needed, suitable for production macOS service deployment.
     // TODO: Alternative provisioning — interactive stdin prompt on first run:
     //       ask user to enter a key or press Enter to generate; useful for headless setup scripts.
+
+    /**
+     * Eagerly loads the key from config on CDI startup.
+     * This ensures the key is available in test mode (where StartupEvent observers fire
+     * after auth is already wired) and gives ServerStartup/AgentStartup a baseline to
+     * build on. initServer()/initAgent() may subsequently upgrade the resolved key
+     * (e.g. generate and persist one if no config key is present).
+     */
+    @PostConstruct
+    void autoInit() {
+        resolvedKey = loadFromConfig();
+    }
 
     /** Called by ServerStartup after ensureDirectories(). Generates key if absent. */
     public void initServer() {
