@@ -36,11 +36,9 @@ public class ApiKeyService {
     //       ask user to enter a key or press Enter to generate; useful for headless setup scripts.
 
     /**
-     * Eagerly loads the key from config on CDI startup.
-     * This ensures the key is available in test mode (where StartupEvent observers fire
-     * after auth is already wired) and gives ServerStartup/AgentStartup a baseline to
-     * build on. initServer()/initAgent() may subsequently upgrade the resolved key
-     * (e.g. generate and persist one if no config key is present).
+     * Eagerly loads the config key at CDI construction time, so {@code getKey()} returns
+     * a value even if {@code initServer()}/{@code initAgent()} hasn't been called yet.
+     * Safe to run before {@code ServerStartup.ensureDirectories()} — no file I/O.
      */
     @PostConstruct
     void autoInit() {
