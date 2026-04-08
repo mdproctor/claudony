@@ -109,15 +109,14 @@
     function sendCompose() {
         var text = textarea.value;
         if (!text) { closeCompose(); return; }
-        var base = '/api/sessions/' + sessionId + '/input';
-        var opts = function (t) {
-            return { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                     body: JSON.stringify({ text: t }) };
-        };
-        // Clear current prompt line (Ctrl+A + Ctrl+K), then send composed text
-        fetch(base, opts('\x01\x0b'))
-            .then(function () { return fetch(base, opts(text)); })
-            .catch(function () {});
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            document.getElementById('compose-send-btn').textContent = 'Not connected';
+            setTimeout(function () {
+                document.getElementById('compose-send-btn').textContent = 'Send';
+            }, 2000);
+            return;
+        }
+        ws.send(text);
         textarea.value = '';
         closeCompose();
     }
