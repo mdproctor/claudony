@@ -106,22 +106,23 @@
         terminal.focus();
     }
 
-    function sendCompose() {
+    async function sendCompose() {
         var text = textarea.value;
         if (!text) { closeCompose(); return; }
         textarea.value = '';
         closeCompose();
-        // Clear current prompt line (Ctrl+A + Ctrl+K) via REST, then paste text.
-        // Small delay lets tmux process the clear before the paste arrives.
-        fetch('/api/sessions/' + sessionId + '/input', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: '\x01\x0b' })
-        }).then(function () {
-            setTimeout(function () { terminal.paste(text); }, 80);
-        }).catch(function () {
-            terminal.paste(text);  // clear failed — paste anyway
-        });
+        // Clear current prompt line (Ctrl+A moves to start, Ctrl+K kills to end).
+        // Wait for the REST call to complete AND give tmux time to process it
+        // before pasting — otherwise the paste races ahead of the clear.
+        try {
+            await fetch('/api/sessions/' + sessionId + '/input', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: '\x01\x0b' })
+            });
+            await new Promise(function (r) { setTimeout(r, 150); });
+        } catch (e) { /* paste anyway if clear fails */ }
+        terminal.paste(text);
     }
 
     document.getElementById('compose-btn').addEventListener('click', openCompose);
