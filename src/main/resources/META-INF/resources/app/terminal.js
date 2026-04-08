@@ -109,14 +109,10 @@
     function sendCompose() {
         var text = textarea.value;
         if (!text) { closeCompose(); return; }
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-            document.getElementById('compose-send-btn').textContent = 'Not connected';
-            setTimeout(function () {
-                document.getElementById('compose-send-btn').textContent = 'Send';
-            }, 2000);
-            return;
-        }
-        ws.send(text);
+        // terminal.paste() fires xterm.js onData, which AttachAddon forwards to
+        // the WebSocket. Handles bracketed paste mode correctly (\x1b[200~...\x1b[201~).
+        // Direct ws.send() bypasses AttachAddon and breaks when it reconnects.
+        terminal.paste(text);
         textarea.value = '';
         closeCompose();
     }
