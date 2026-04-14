@@ -55,7 +55,7 @@ JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn quarkus:dev -Dclaudony.mode=server
 # Start JVM jar (IMPORTANT: -D flags must come BEFORE -jar, not after)
 # Also set QUARKUS_HTTP_AUTH_SESSION_ENCRYPTION_KEY so auth cookies survive restarts.
 # Without it, a new random key is generated each restart and all sessions are logged out.
-# The application.properties has a fallback dev key, but prod mode generates a random one.
+# Prod: auto-generated unique key via EncryptionKeyConfigSource, persisted to ~/.claudony/encryption-key.
 QUARKUS_HTTP_AUTH_SESSION_ENCRYPTION_KEY=<your-secret-32-chars> \
 JAVA_HOME=$(/usr/libexec/java_home -v 26) java \
   -Dclaudony.mode=server -Dclaudony.bind=0.0.0.0 \
@@ -191,10 +191,11 @@ claudony.agent.api-key=                  # auto-generated on first server run; s
 
 ## Test Count and Status
 
-**139 tests passing** across:
+**159 tests passing** across:
 - `SmokeTest` — basic health endpoint
 - `server/` — TmuxService (real tmux), SessionRegistry, SessionResource, TerminalWebSocket, ServerStartup, SessionInputOutput
 - `server/auth/` — ApiKeyService, ApiKeyAuthMechanism, AuthResource, AuthRateLimiter (+ AuthRateLimiterHttpTest for HTTP-level), CredentialStore, InviteService
+- `config/` — EncryptionKeyConfigSource (15 unit tests + 5 QuarkusTest integration)
 - `agent/` — McpServer (mocked), McpServerIntegrationTest (real HTTP), ServerClient, ClipboardChecker, ITerm2Adapter, TerminalAdapterFactory, AgentStartup
 - `frontend/` — StaticFilesTest (all static files + content), AppAuthProtectionTest (/app/* unauthenticated), ResizeEndpointTest
 - `e2e/` — ClaudeE2ETest (real `claude` CLI via `mvn test -Pe2e`, skipped in default run)
