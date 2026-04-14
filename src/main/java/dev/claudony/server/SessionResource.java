@@ -2,6 +2,7 @@ package dev.claudony.server;
 
 import dev.claudony.agent.terminal.TerminalAdapterFactory;
 import dev.claudony.config.ClaudonyConfig;
+import dev.claudony.server.fleet.FleetKeyClientFilter;
 import dev.claudony.server.fleet.PeerClient;
 import dev.claudony.server.fleet.PeerRegistry;
 import dev.claudony.server.model.*;
@@ -94,6 +95,7 @@ public class SessionResource {
                 .baseUri(URI.create(peerUrl))
                 .connectTimeout(3, TimeUnit.SECONDS)
                 .readTimeout(2, TimeUnit.SECONDS)
+                .register(FleetKeyClientFilter.class)
                 .build(PeerClient.class);
         return client.getSessions(true); // local=true prevents recursive federation
     }

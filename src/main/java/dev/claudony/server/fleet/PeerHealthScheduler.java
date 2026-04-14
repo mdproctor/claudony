@@ -30,8 +30,8 @@ public class PeerHealthScheduler {
                     .baseUri(URI.create(entry.url))
                     .connectTimeout(5, TimeUnit.SECONDS)
                     .readTimeout(5, TimeUnit.SECONDS)
+                    .register(FleetKeyClientFilter.class)
                     .build(PeerClient.class);
-            // @RegisterProvider(FleetKeyClientFilter.class) on PeerClient applies even via RestClientBuilder
             var sessions = client.getSessions(true);
             registry.recordSuccess(entry.id);
             registry.updateCachedSessions(entry.id, sessions);
