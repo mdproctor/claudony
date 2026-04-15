@@ -1,51 +1,52 @@
-# Handover — 2026-04-15
+# Handover — 2026-04-15 (session 2)
 
-**Head commit:** `d5bc9a9` — fix: duplicate URL returns existing peer, AtomicInteger circuit breaker counter
+**Head commit:** `2e082ed` — docs: update test count to 212 after PROXY resize fix
 **Previous handover:** `git show HEAD~1:HANDIFF.md`
 
 ## What Changed This Session
 
-**Three security/quality fixes shipped:**
-- `EncryptionKeyConfigSource` — per-deployment session encryption key (was a shared hardcoded key in the repo). MicroProfile `ConfigSource` at ordinal 200, generates 256-bit key on first boot, persists to `~/.claudony/encryption-key` with `rw-------` permissions. 20 tests.
-- Session timeout — `quarkus.webauthn.session-timeout=P7D` (was 30 minutes). Configurable via `claudony.session-timeout`. 3 tests.
-- Pre-1.0 ADRs written: `adr/0001` (terminal streaming), `adr/0002` (MCP transport), `adr/0003` (auth mechanism).
+**Fleet Phase 2 shipped:**
+- Dashboard fleet panel: peer health dots, circuit state, source badge, last seen
+- Session cards: instance badge, stale indicator (⏰ last seen N ago)
+- Add Peer modal (URL, name, terminal mode)
+- Ping / remove / toggle terminal mode per peer
+- PROXY WebSocket bridge: `ProxyWebSocket` at `/ws/proxy/{peerId}/{sessionId}/{cols}/{rows}`
+- Fixed: singleton `HttpClient` in `ProxyWebSocket` (was leaking one per connection)
 
-**Fleet Manager Phase 1 shipped:**
-- Peer mesh: `PeerRegistry` + circuit breaker (3 failures → OPEN, exponential backoff 30s→5m, atomic `peers.json` persistence)
-- Three discovery sources: static config (`claudony.peers`), manual (`POST /api/peers`), mDNS scaffold (disabled by default)
-- Fleet key auth: `claudony.fleet-key`, `FleetKeyService`, `ApiKeyAuthMechanism` extended to accept peer principal
-- Session federation: `GET /api/sessions` fans out to healthy peers (2s timeout), stale cache fallback, `?local=true` prevents recursion
-- Full `/api/peers` CRUD: list, add, delete, patch, `/{id}/sessions`, `/{id}/ping`, `/generate-fleet-key`
-- Dockerfile (eclipse-temurin:21-jre-alpine + tmux) + docker-compose.yml two-node example
-- 45 new tests → total: **207 tests passing**
+**Playwright E2E browser tests (13 tests):**
+- `PlaywrightSetupE2ETest` — 4 architecture verification tests
+- `DashboardE2ETest` — 7 dashboard tests; also fixed `displayName()` bug (remotecc→claudony prefix)
+- `TerminalPageE2ETest` — 2 tests (structure + proxy resize URL)
+- Convention: `window.__CLAUDONY_TEST_MODE__` gates test hooks; set via `page.addInitScript()`
+
+**PROXY resize fix (#50):**
+- New endpoint: `POST /api/peers/{peerId}/sessions/{sessionId}/resize`
+- `terminal.js` routes resize to proxy endpoint when `proxyPeer` URL param is set
+
+**Total: 212 Java tests + 13 Playwright browser tests. All issues closed and linked.**
 
 ## Running State
 
-Server and agent are running (JVM mode):
-```bash
-JAVA_HOME=$(/usr/libexec/java_home -v 26) java -Dclaudony.mode=server -Dclaudony.bind=0.0.0.0 -jar target/quarkus-app/quarkus-run.jar
-JAVA_HOME=$(/usr/libexec/java_home -v 26) java -Dclaudony.mode=agent -Dclaudony.port=7778 -jar target/quarkus-app/quarkus-run.jar
-```
+*Unchanged — `git show HEAD~1:HANDIFF.md`*
 
 ## Immediate Next Step
 
-**Fleet Phase 2** — dashboard fleet panel, session instance badges, stale session indicators, PROXY WebSocket bridge for peers behind NAT.
-
-No plan file yet. Spec: `docs/superpowers/specs/2026-04-14-fleet-manager-design.md` § "Phase 2 — Fleet UI + terminal proxy".
+**Mac Mini deployment + `docs/DEPLOYMENT.md`** — still not written. Now more urgent: fleet, Docker, and Playwright all need to be documented for real-world deployment. Start with `docs/DEPLOYMENT.md` covering JVM jar startup, Docker compose fleet, launchd plist for auto-start, WebAuthn origin config for remote access.
 
 ## Open Questions / Deferred
 
-- **iPad WebAuthn origin** — `192.168.1.108:7777` requires `QUARKUS_WEBAUTHN_ORIGIN` config match. Not yet addressed.
-- **Mac Mini deployment + `docs/DEPLOYMENT.md`** — still unwritten; more urgent now Docker exists.
-- **mDNS full implementation** — `MdnsDiscovery` is a scaffold; Vert.x mDNS not actually wired.
-- **`generate-fleet-key` peer access** — any peer can regenerate the fleet key (future ACL work).
+- **iPad WebAuthn origin** — `QUARKUS_WEBAUTHN_ORIGIN=http://192.168.1.108:7777` still not configured
+- **mDNS full implementation** — `MdnsDiscovery` is a scaffold; Vert.x mDNS not wired
+- **"Expand E2E coverage" epic** — terminal I/O, fleet peer interaction, WebAuthn flows; deferred
+- **ClaudeE2ETest cross-test pollution** — leaves tmux sessions that affect `DashboardE2ETest` when full `-Pe2e` runs; tests pass individually
+- **`generate-fleet-key` peer access** — any peer can regenerate the fleet key (future ACL work)
 
 ## References
 
 | Context | Where |
 |---|---|
 | Fleet design spec + FLEET.md | `docs/superpowers/specs/2026-04-14-fleet-manager-design.md`, `docs/FLEET.md` |
+| Playwright E2E spec | `docs/superpowers/specs/2026-04-15-playwright-e2e-design.md` |
 | ADRs | `adr/INDEX.md` |
-| Living design doc | `docs/DESIGN.md` |
-| Latest blog | `docs/blog/2026-04-15-mdp01-one-dashboard-all-sessions.md` |
-| Previous handover | `git show HEAD:HANDIFF.md` then `git log --oneline -- HANDIFF.md` |
+| Latest blog | `docs/blog/2026-04-15-mdp02-tests-that-make-things-real.md` |
+| Previous handover | `git show HEAD~1:HANDIFF.md` then `git log --oneline -- HANDIFF.md` |
