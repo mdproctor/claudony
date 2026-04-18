@@ -1,52 +1,58 @@
-# Handover — 2026-04-15 (session 2)
+# Handover — 2026-04-18
 
-**Head commit:** `2e082ed` — docs: update test count to 212 after PROXY resize fix
-**Previous handover:** `git show HEAD~1:HANDIFF.md`
+**Head commit:** `1b47421` — docs: blog entry Phase 8: The Mesh You Can See
+**Previous handover:** `git show HEAD~50:HANDOFF.md` (2026-04-15, session 2)
 
-## What Changed This Session
+---
 
-**Fleet Phase 2 shipped:**
-- Dashboard fleet panel: peer health dots, circuit state, source badge, last seen
-- Session cards: instance badge, stale indicator (⏰ last seen N ago)
-- Add Peer modal (URL, name, terminal mode)
-- Ping / remove / toggle terminal mode per peer
-- PROXY WebSocket bridge: `ProxyWebSocket` at `/ws/proxy/{peerId}/{sessionId}/{cols}/{rows}`
-- Fixed: singleton `HttpClient` in `ProxyWebSocket` (was leaking one per connection)
+## What happened this session
 
-**Playwright E2E browser tests (13 tests):**
-- `PlaywrightSetupE2ETest` — 4 architecture verification tests
-- `DashboardE2ETest` — 7 dashboard tests; also fixed `displayName()` bug (remotecc→claudony prefix)
-- `TerminalPageE2ETest` — 2 tests (structure + proxy resize URL)
-- Convention: `window.__CLAUDONY_TEST_MODE__` gates test hooks; set via `page.addInitScript()`
+Enormous session. Three major arcs:
 
-**PROXY resize fix (#50):**
-- New endpoint: `POST /api/peers/{peerId}/sessions/{sessionId}/resize`
-- `terminal.js` routes resize to proxy endpoint when `proxyPeer` URL param is set
+**Arc 1 — Quarkus upgrade + prerequisites (issues #51–53)**
+- Quarkus 3.9.5 → 3.32.2 to align with Qhorus
+- WebAuthn API replaced entirely: Vert.x WebAuthn → webauthn4j. `CredentialStore` rewritten. `WebAuthnPatcher` + `LenientNoneAttestation` deleted (webauthn4j handles Apple passkeys by default). Graceful migration for legacy non-UUID aaguid strings in `credentials.json`.
+- `rest-client-reactive-jackson` → `rest-client-jackson`. `quarkus-junit5` → `quarkus-junit`.
+- `McpServer.java` (hand-rolled JSON-RPC) → `quarkus-mcp-server-http`. Tests split: `ClaudonyMcpToolsTest` (direct CDI), `McpProtocolTest` (HTTP compliance), `McpServerIntegrationTest` (real tmux).
 
-**Total: 212 Java tests + 13 Playwright browser tests. All issues closed and linked.**
+**Arc 2 — Reliability + MCP hardening (issues #54–55)**
+- Reliability pass: `Await.java` polling utility replacing Thread.sleep across 6 test files; `@TestMethodOrder` removed from 5 test classes; AuthResource stream leak fixed; SessionResource empty catch logged; `catch(Exception)` narrowed to declared types across 5 production files.
+- MCP hardening: two-tier error handling (`serverError`/`connectError` helpers) on all 8 `@Tool` methods. `/api/mesh/events` SSE endpoint. Auth protection tests. 4 Playwright E2E tests. XSS-safe `escapeHtml()` in view renderers.
+- Key gotcha: `@WrapBusinessError` wraps `IllegalArgumentException` into `ToolCallException` at CDI proxy boundary — must catch both.
 
-## Running State
+**Arc 3 — Qhorus Phase 8 + Mesh panel (issues #56–61, epic #58)**
+- `quarkus-qhorus` embedded. 47 tools at `/mcp`. H2 datasource via Hibernate schema generation.
+- Ledger write isolation ADR-0004: `@Transactional(REQUIRES_NEW)` + try/catch over async fire-and-forget, to preserve lineage completeness.
+- Mesh observation panel: `MeshResource` (thin facade over `QhorusMcpTools`), three views (Overview/Channel/Feed), collapsible, poll/SSE configurable. 9 new Java tests + 4 Playwright E2E.
 
-*Unchanged — `git show HEAD~1:HANDIFF.md`*
+**Test count: 240** (up from 212)
 
-## Immediate Next Step
+---
 
-**Mac Mini deployment + `docs/DEPLOYMENT.md`** — still not written. Now more urgent: fleet, Docker, and Playwright all need to be documented for real-world deployment. Start with `docs/DEPLOYMENT.md` covering JVM jar startup, Docker compose fleet, launchd plist for auto-start, WebAuthn origin config for remote access.
+## State
 
-## Open Questions / Deferred
+No open GitHub issues. Clean working tree.
 
-- **iPad WebAuthn origin** — `QUARKUS_WEBAUTHN_ORIGIN=http://192.168.1.108:7777` still not configured
-- **mDNS full implementation** — `MdnsDiscovery` is a scaffold; Vert.x mDNS not wired
-- **"Expand E2E coverage" epic** — terminal I/O, fleet peer interaction, WebAuthn flows; deferred
-- **ClaudeE2ETest cross-test pollution** — leaves tmux sessions that affect `DashboardE2ETest` when full `-Pe2e` runs; tests pass individually
-- **`generate-fleet-key` peer access** — any peer can regenerate the fleet key (future ACL work)
+---
 
-## References
+## What's next
 
-| Context | Where |
+**Immediate:** Human interjection in the Mesh panel — chat input posting to a Qhorus channel as a first-class participant. Design was in progress at session end.
+
+**Near-term:**
+- Session expiry enforcement (server-side idle timeout — config exists, enforcement missing)
+- Qhorus DB independence refactor (Qhorus session) → then `PeerRegistry` (`peers.json`) migrates to shared DB abstraction
+
+**Medium:** CaseHub embedding (Phase B continued)
+
+---
+
+## Key files
+
+| Path | What it is |
 |---|---|
-| Fleet design spec + FLEET.md | `docs/superpowers/specs/2026-04-14-fleet-manager-design.md`, `docs/FLEET.md` |
-| Playwright E2E spec | `docs/superpowers/specs/2026-04-15-playwright-e2e-design.md` |
-| ADRs | `adr/INDEX.md` |
-| Latest blog | `docs/blog/2026-04-15-mdp02-tests-that-make-things-real.md` |
-| Previous handover | `git show HEAD~1:HANDIFF.md` then `git log --oneline -- HANDIFF.md` |
+| `docs/superpowers/2026-04-16-mcp-hardening-baseline.md` | MCP hardening history + joint decisions with Qhorus Claude |
+| `docs/superpowers/specs/2026-04-17-mesh-observation-panel-design.md` | Mesh panel design spec (approved, implemented) |
+| `adr/0004-ledger-write-transaction-isolation.md` | REQUIRES_NEW decision for ledger writes |
+| `src/main/java/dev/claudony/server/MeshResource.java` | New: REST facade over QhorusMcpTools |
+| `src/main/resources/META-INF/resources/app/dashboard.js` | Updated: MeshPanel, strategies, view renderers, escapeHtml |
