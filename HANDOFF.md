@@ -1,49 +1,44 @@
-# Handover — 2026-04-18
+# Handover — 2026-04-20
 
-**Head commit:** `1b47421` — docs: blog entry Phase 8: The Mesh You Can See
-**Previous handover:** `git show HEAD~50:HANDOFF.md` (2026-04-15, session 2)
+**Head commit:** `26a772d` — docs: human interjection — update test count to 246
+**Previous handover:** `git show HEAD~1:HANDOFF.md` (2026-04-18)
 
 ---
 
 ## What happened this session
 
-Enormous session. Three major arcs:
+Human interjection in the Mesh panel — epic #62, issues #63–65, all closed.
 
-**Arc 1 — Quarkus upgrade + prerequisites (issues #51–53)**
-- Quarkus 3.9.5 → 3.32.2 to align with Qhorus
-- WebAuthn API replaced entirely: Vert.x WebAuthn → webauthn4j. `CredentialStore` rewritten. `WebAuthnPatcher` + `LenientNoneAttestation` deleted (webauthn4j handles Apple passkeys by default). Graceful migration for legacy non-UUID aaguid strings in `credentials.json`.
-- `rest-client-reactive-jackson` → `rest-client-jackson`. `quarkus-junit5` → `quarkus-junit`.
-- `McpServer.java` (hand-rolled JSON-RPC) → `quarkus-mcp-server-http`. Tests split: `ClaudonyMcpToolsTest` (direct CDI), `McpProtocolTest` (HTTP compliance), `McpServerIntegrationTest` (real tmux).
+**Feature:** Fixed dock pinned below `mesh-body`, visible in all three views. Channel `<select>` defaults to most-recently-active (sorted by `lastActivityAt`), updates on channel-item click in Overview/Feed/Channel. Type select (status/request/response/handoff/done). Enter to send, inline 4-second error, immediate poll trigger on success. Double-submit guard.
 
-**Arc 2 — Reliability + MCP hardening (issues #54–55)**
-- Reliability pass: `Await.java` polling utility replacing Thread.sleep across 6 test files; `@TestMethodOrder` removed from 5 test classes; AuthResource stream leak fixed; SessionResource empty catch logged; `catch(Exception)` narrowed to declared types across 5 production files.
-- MCP hardening: two-tier error handling (`serverError`/`connectError` helpers) on all 8 `@Tool` methods. `/api/mesh/events` SSE endpoint. Auth protection tests. 4 Playwright E2E tests. XSS-safe `escapeHtml()` in view renderers.
-- Key gotcha: `@WrapBusinessError` wraps `IllegalArgumentException` into `ToolCallException` at CDI proxy boundary — must catch both.
+**Backend:** `POST /api/mesh/channels/{name}/messages` in `MeshResource`. `VALID_HUMAN_TYPES` guard → 400. `ToolCallException.getCause() instanceof IllegalArgumentException` → 404; other `ToolCallException`/`IllegalStateException` → 409. Sender fixed as `"human"`.
 
-**Arc 3 — Qhorus Phase 8 + Mesh panel (issues #56–61, epic #58)**
-- `quarkus-qhorus` embedded. 47 tools at `/mcp`. H2 datasource via Hibernate schema generation.
-- Ledger write isolation ADR-0004: `@Transactional(REQUIRES_NEW)` + try/catch over async fire-and-forget, to preserve lineage completeness.
-- Mesh observation panel: `MeshResource` (thin facade over `QhorusMcpTools`), three views (Overview/Channel/Feed), collapsible, poll/SSE configurable. 9 new Java tests + 4 Playwright E2E.
+**Key bugs found during implementation:**
+- `var(--bg-secondary)` undefined in CSS → transparent inputs. Fixed to `var(--bg)`.
+- `escapeHtml()` in `onclick` doesn't prevent JS injection — `;` and `)` pass through. Fixed with `data-channel` attribute + `querySelectorAll` binding after `innerHTML`.
+- `%test.quarkus.datasource.reactive=false` required when `hibernate-reactive-panache` is transitive dep with H2 — whole test context fails to start without it.
+- `@WrapBusinessError` wraps into `ToolCallException(cause)` — `getCause()` instanceof check needed to distinguish 404 vs 409.
 
-**Test count: 240** (up from 212)
+**Tests:** 246 passing (was 240). `MeshResourceInterjectionTest` (4), `MeshResourceAuthTest` +1, `StaticFilesTest` +1. E2E: `MeshInterjectionE2ETest` (3, `-Pe2e`).
+
+**CLAUDE.md:** Two new test conventions documented — `UserTransaction` cleanup pattern for HTTP-triggered DB state, `%test.quarkus.datasource.reactive=false` requirement.
 
 ---
 
 ## State
 
-No open GitHub issues. Clean working tree.
+No open GitHub issues. Clean working tree after commit.
+`application.properties` now has `%test.quarkus.datasource.reactive=false`.
 
 ---
 
 ## What's next
 
-**Immediate:** Human interjection in the Mesh panel — chat input posting to a Qhorus channel as a first-class participant. Design was in progress at session end.
+**Immediate:** Session expiry enforcement — server-side idle timeout. Config exists (`claudony.session-timeout`), enforcement not implemented. Sessions never expire.
 
-**Near-term:**
-- Session expiry enforcement (server-side idle timeout — config exists, enforcement missing)
-- Qhorus DB independence refactor (Qhorus session) → then `PeerRegistry` (`peers.json`) migrates to shared DB abstraction
+**Near-term:** Qhorus DB independence refactor (Qhorus session) → then `PeerRegistry` (`peers.json`) migrates to shared DB abstraction.
 
-**Medium:** CaseHub embedding (Phase B continued)
+**Medium:** CaseHub embedding (Phase B continued).
 
 ---
 
@@ -51,8 +46,7 @@ No open GitHub issues. Clean working tree.
 
 | Path | What it is |
 |---|---|
-| `docs/superpowers/2026-04-16-mcp-hardening-baseline.md` | MCP hardening history + joint decisions with Qhorus Claude |
-| `docs/superpowers/specs/2026-04-17-mesh-observation-panel-design.md` | Mesh panel design spec (approved, implemented) |
-| `adr/0004-ledger-write-transaction-isolation.md` | REQUIRES_NEW decision for ledger writes |
-| `src/main/java/dev/claudony/server/MeshResource.java` | New: REST facade over QhorusMcpTools |
-| `src/main/resources/META-INF/resources/app/dashboard.js` | Updated: MeshPanel, strategies, view renderers, escapeHtml |
+| `docs/superpowers/specs/2026-04-18-human-interjection-design.md` | Interjection spec (marked Implemented) |
+| `src/main/java/dev/claudony/server/MeshResource.java` | POST endpoint + error handling |
+| `src/main/resources/META-INF/resources/app/dashboard.js` | Dock wiring — MeshPanel._initDock, _send, _updateDockChannels, selectChannel |
+| `src/test/java/dev/claudony/server/MeshResourceInterjectionTest.java` | Integration tests with UserTransaction cleanup |

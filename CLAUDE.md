@@ -238,6 +238,8 @@ claudony.name=Claudony                  # instance name shown in fleet dashboard
 `ServerStartup.bootstrapRegistry()` is package-private to allow direct testing.
 Auth tests use `@TestSecurity(user = "test", roles = "user")` to bypass auth in non-auth test classes.
 Stateful `@ApplicationScoped` beans (e.g. `AuthRateLimiter`) expose `resetForTest()` / `setClockForTest()` package-private hooks; `@AfterEach` cleanup is required to prevent state bleeding across `@QuarkusTest` classes, which share one app instance per test run.
+For HTTP-triggered DB state (where `@TestTransaction` can't roll back server-side transactions): inject `@Inject UserTransaction ut` and wrap Panache deletes in `ut.begin()`/`ut.commit()` in `@AfterEach`. See `MeshResourceInterjectionTest` for the pattern.
+`%test.quarkus.datasource.reactive=false` is required in `application.properties` when a transitive dependency pulls in `hibernate-reactive-panache` — without it, H2 tests fail to start entirely.
 
 ---
 
