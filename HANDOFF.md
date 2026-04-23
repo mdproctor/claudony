@@ -1,45 +1,52 @@
-# Handover — 2026-04-21
+# Handover — 2026-04-23
 
-**Head commit:** `c033b52` — blog entry: sessions-dont-last-forever
-**Previous handover:** `git show HEAD~1:HANDOFF.md` (2026-04-20)
+**Head commit:** `ea31bb3` — blog: everything-in-its-own-datasource
+**Previous handover:** `git show HEAD~1:HANDOFF.md`
 
 ---
 
 ## What happened this session
 
-Session expiry enforcement — epic #66 (closed), issue #67 (closed). 16 commits.
+**Ecosystem persistence isolation** — design, implementation across two projects, ADRs, blog.
 
-**Feature:** Pluggable `ExpiryPolicy` CDI registry. Three implementations:
-- `user-interaction` — checks `session.lastActive()` (default)
-- `terminal-output` — checks `tmux #{window_activity}` (not `#{pane_activity}` — blank without client)
-- `status-aware` — never expires if non-shell process is in foreground
+**Qhorus changes (on `main`, pushed):**
+- `PendingReplyStore` as the sixth store SPI interface (+ reactive mirror, JPA + InMemory impls, contract test base, `deleteExpiredBefore` returns `long`)
+- `MessageStore` aggregate methods: `countAllByChannel()`, `distinctSendersByChannel(UUID, MessageType)` — closed all `Message.getEntityManager()` bypasses in `QhorusMcpTools` and `ReactiveQhorusMcpTools`
+- Named persistence unit `qhorus` — `AgentMessageLedgerEntryRepository` uses `@PersistenceUnit("qhorus")`; test `application.properties` updated to `quarkus.datasource.qhorus.*`
+- InMemory*Store timestamp init fix + `getChannelTimeline` bypass fixed
+- ADR 0001: Claudony is not a dependency of CaseHub
+- Qhorus #87 open: `ReactiveJpaMessageStore.countAllByChannel` loads all rows (FIXME comment in place)
 
-`SessionIdleScheduler` (`@Scheduled every 5m`): resolves per-session or global policy, fires `SessionExpiredEvent` (before kill), kills tmux, removes registry entry — all inside try/catch.
-
-`TerminalWebSocket` observes `SessionExpiredEvent`, sends `{"type":"session-expired"}` to connected clients on a virtual thread. `registry.touch()` called on WS open (after pipe-pane), WS input, REST input.
-
-`Session.expiryPolicy` (`Optional<String>`), `CreateSessionRequest.expiryPolicy`, `SessionResponse.expiryPolicy` (resolved name) — per-session override wired end-to-end.
-
-**Key bugs fixed in review:**
-- `registry.remove()` was outside try/catch → tmux session survived but registry entry removed on event-fire exception. Fixed: all three ops inside try.
-- `touch()` was called before pipe-pane setup in `onOpen()` → moved to after successful setup.
-- `ExpiryPolicyRegistry.resolve()` had silent last-resort fallback → now throws `IllegalStateException` if policies empty.
-
-**Tests:** 273 passing (was 246). Garden PR #94 (3 entries: tmux gotcha, QuarkusTest EventCaptor, CDI Instance registry).
+**Claudony changes (on `main`, pushed):**
+- `quarkus.datasource.qhorus.*` named datasource (was default datasource)
+- `quarkus-qhorus-testing` test dependency — Qhorus data now uses InMemory stores in `@QuarkusTest`, no real DB needed
+- `MeshResourceInterjectionTest` cleanup: inject `InMemoryChannelStore` + `InMemoryMessageStore`, call `clear()` in `@AfterEach`
+- `MeshResource` fixes: `QhorusMcpToolsBase` inner class refs, SSE worker thread dispatch
+- `src/test/resources/application.properties` with `quarkus.http.test-port=0`
+- ADR 0005: CaseHub integration lives in optional `claudony-casehub` module
+- Ecosystem design updated: `NonoProvisioner` added
+- 275 tests passing (6 pre-existing connection-refused failures need live server)
 
 ---
 
 ## State
 
-Clean working tree. Pushed to main. `settings.local.json` modified (unrelated).
+Clean on `main`. Both Qhorus and Claudony pushed to GitHub.
+`settings.local.json` modified (unrelated).
 
 ---
 
 ## What's next
 
-**Immediate:** Qhorus DB independence refactor — Qhorus sessions and `PeerRegistry` (`peers.json`) migrate to a shared DB abstraction. Prerequisite for proper Phase B multi-node state.
+**Immediate:** Qhorus #87 — fix `ReactiveJpaMessageStore.countAllByChannel` to use GROUP BY aggregate query instead of loading all rows.
 
-**After that:** CaseHub embedding (Phase B) — `WorkerProvisioner`, `CaseChannelProvider`, `WorkerContextProvider`, `WorkerStatusListener` SPIs. Design: `docs/superpowers/specs/2026-04-13-quarkus-ai-ecosystem-design.md`.
+**After that:** CaseHub Phase B embedding.
+- Survey `~/claude/casehub` to see how far along the SPIs are
+- `claudony-casehub` module in Claudony implementing `WorkerProvisioner`, `CaseChannelProvider`, `WorkerContextProvider`, `WorkerStatusListener`
+- `quarkus.datasource.casehub.*` named datasource (convention already in spec)
+- Unified three-panel dashboard
+
+**Standing idea:** Get Qhorus bootstrapped under Claudony management — every cross-project question is currently a round-trip message.
 
 ---
 
@@ -47,8 +54,9 @@ Clean working tree. Pushed to main. `settings.local.json` modified (unrelated).
 
 | Path | What it is |
 |---|---|
-| `src/main/java/dev/claudony/server/expiry/` | All expiry policy code |
-| `src/main/java/dev/claudony/server/expiry/SessionIdleScheduler.java` | Scheduler + CDI event fire |
-| `src/main/java/dev/claudony/server/model/SessionExpiredEvent.java` | CDI event record |
-| `src/main/java/dev/claudony/server/SessionRegistry.java` | Now has `touch(String id)` |
-| `docs/superpowers/specs/2026-04-20-session-expiry-design.md` | Spec (note: says pane_activity — impl uses window_activity) |
+| `docs/superpowers/specs/2026-04-22-ecosystem-persistence-isolation-design.md` | Spec for this session's work |
+| `docs/superpowers/specs/2026-04-13-quarkus-ai-ecosystem-design.md` | Master ecosystem design (CaseHub Phase B blueprint) |
+| `adr/0005-casehub-integration-is-optional.md` | Claudony dependency boundary rule |
+| `~/claude/casehub/adr/0001-claudony-is-not-a-dependency.md` | CaseHub dependency boundary rule |
+| `~/claude/quarkus-qhorus/` | Qhorus repo — all changes on main |
+| `~/claude/casehub/` | CaseHub repo — next implementation target |
