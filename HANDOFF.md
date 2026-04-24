@@ -1,52 +1,69 @@
-# Handover — 2026-04-23
+# Handover — 2026-04-24
 
-**Head commit:** `ea31bb3` — blog: everything-in-its-own-datasource
+**Head commit:** `b5d8e85` — claudony-casehub implementation plan
+**Branch:** `main` (plan + spec committed, WIP on worktree)
 **Previous handover:** `git show HEAD~1:HANDOFF.md`
 
 ---
 
 ## What happened this session
 
-**Ecosystem persistence isolation** — design, implementation across two projects, ADRs, blog.
+Designed and started implementing `claudony-casehub` — the optional Maven module that implements CaseHub Worker Provisioner SPIs in Claudony.
 
-**Qhorus changes (on `main`, pushed):**
-- `PendingReplyStore` as the sixth store SPI interface (+ reactive mirror, JPA + InMemory impls, contract test base, `deleteExpiredBefore` returns `long`)
-- `MessageStore` aggregate methods: `countAllByChannel()`, `distinctSendersByChannel(UUID, MessageType)` — closed all `Message.getEntityManager()` bypasses in `QhorusMcpTools` and `ReactiveQhorusMcpTools`
-- Named persistence unit `qhorus` — `AgentMessageLedgerEntryRepository` uses `@PersistenceUnit("qhorus")`; test `application.properties` updated to `quarkus.datasource.qhorus.*`
-- InMemory*Store timestamp init fix + `getChannelTimeline` bypass fixed
-- ADR 0001: Claudony is not a dependency of CaseHub
-- Qhorus #87 open: `ReactiveJpaMessageStore.countAllByChannel` loads all rows (FIXME comment in place)
+**Completed:**
+- Design spec: `docs/superpowers/specs/2026-04-23-claudony-casehub-design.md`
+- Implementation plan: `docs/superpowers/plans/2026-04-23-claudony-casehub.md`
+- GitHub epic #70, issue #71
+- T1 (Maven restructuring) structurally done on branch `feature/claudony-casehub` in worktree `.worktrees/claudony-casehub` — but baseline broken
 
-**Claudony changes (on `main`, pushed):**
-- `quarkus.datasource.qhorus.*` named datasource (was default datasource)
-- `quarkus-qhorus-testing` test dependency — Qhorus data now uses InMemory stores in `@QuarkusTest`, no real DB needed
-- `MeshResourceInterjectionTest` cleanup: inject `InMemoryChannelStore` + `InMemoryMessageStore`, call `clear()` in `@AfterEach`
-- `MeshResource` fixes: `QhorusMcpToolsBase` inner class refs, SSE worker thread dispatch
-- `src/test/resources/application.properties` with `quarkus.http.test-port=0`
-- ADR 0005: CaseHub integration lives in optional `claudony-casehub` module
-- Ecosystem design updated: `NonoProvisioner` added
-- 275 tests passing (6 pre-existing connection-refused failures need live server)
+**Blocker: dependency chain unstable**
 
----
+Three related issues that must be resolved before T2-T7 can proceed:
 
-## State
+1. **`quarkus-ledger` renamed from `1.0.0-SNAPSHOT` → `0.2-SNAPSHOT`** — quarkus-qhorus `runtime/pom.xml` updated to `0.2-SNAPSHOT` but needs verification across all poms. `deployment/pom.xml` had parent version corrupted by sed (fixed). Root: `/Users/mdproctor/claude/quarkus-ledger`
 
-Clean on `main`. Both Qhorus and Claudony pushed to GitHub.
-`settings.local.json` modified (unrelated).
+2. **IntelliJ formatter strips `@PersistenceUnit("qhorus")` from quarkus-ledger beans** — Six files affected (`LedgerErasureService`, `LedgerPrivacyProducer`, `LedgerVerificationService`, `LedgerRetentionJob`, `TrustScoreJob`, `JpaActorTrustScoreRepository`). Committed fix at `69a19f5` in quarkus-ledger but IntelliJ reverts working tree. Must `git checkout -- .` THEN build immediately. Garden entry filed: GE-20260424-a29f1c.
+
+3. **`TerminalWebSocketTest` regression in worktree** — `internalBlankLinesPreservedInHistoryToPreservePaneRowPositions` passes on `main` but fails in worktree. Cause: `%test.quarkus.datasource.db-kind=h2` added to `claudony-app/src/main/resources/application.properties` changed Quarkus startup behaviour. Remove it — the real fix is the `@PersistenceUnit` fix in quarkus-ledger.
+
+**WIP commit:** `fb7c555` on `feature/claudony-casehub` in `.worktrees/claudony-casehub`
 
 ---
 
-## What's next
+## Immediate next session: fix the dependency chain
 
-**Immediate:** Qhorus #87 — fix `ReactiveJpaMessageStore.countAllByChannel` to use GROUP BY aggregate query instead of loading all rows.
+**Exact sequence:**
 
-**After that:** CaseHub Phase B embedding.
-- Survey `~/claude/casehub` to see how far along the SPIs are
-- `claudony-casehub` module in Claudony implementing `WorkerProvisioner`, `CaseChannelProvider`, `WorkerContextProvider`, `WorkerStatusListener`
-- `quarkus.datasource.casehub.*` named datasource (convention already in spec)
-- Unified three-panel dashboard
+```bash
+# 1. Restore quarkus-ledger before IntelliJ touches it
+git -C ~/claude/quarkus-ledger checkout -- .
+# Verify fix is in place:
+grep "PersistenceUnit" ~/claude/quarkus-ledger/runtime/src/main/java/io/quarkiverse/ledger/runtime/privacy/LedgerErasureService.java
 
-**Standing idea:** Get Qhorus bootstrapped under Claudony management — every cross-project question is currently a round-trip message.
+# 2. Build quarkus-ledger immediately
+cd ~/claude/quarkus-ledger && mvn install -DskipTests -q
+
+# 3. Verify jar has the fix (should show @PersistenceUnit field annotation)
+javap -p -classpath ~/.m2/repository/io/quarkiverse/ledger/quarkus-ledger/0.2-SNAPSHOT/quarkus-ledger-0.2-SNAPSHOT.jar \
+  io.quarkiverse.ledger.runtime.privacy.LedgerErasureService
+
+# 4. Build quarkus-qhorus
+cd ~/claude/quarkus-qhorus && mvn install -DskipTests -q
+
+# 5. Remove workaround from claudony-app application.properties:
+# Remove these lines:
+# %test.quarkus.datasource.db-kind=h2
+# %test.quarkus.datasource.jdbc.url=...
+# %test.quarkus.datasource.reactive=false
+# %test.quarkus.hibernate-orm.database.generation=none
+
+# 6. Run Claudony tests in worktree
+cd ~/.worktrees/claudony-casehub
+JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn test
+# Target: 275 total, 269 passing, 6 pre-existing failures (no TerminalWebSocket regression)
+```
+
+Once baseline is green, continue with T2 (claudony-casehub skeleton).
 
 ---
 
@@ -54,9 +71,8 @@ Clean on `main`. Both Qhorus and Claudony pushed to GitHub.
 
 | Path | What it is |
 |---|---|
-| `docs/superpowers/specs/2026-04-22-ecosystem-persistence-isolation-design.md` | Spec for this session's work |
-| `docs/superpowers/specs/2026-04-13-quarkus-ai-ecosystem-design.md` | Master ecosystem design (CaseHub Phase B blueprint) |
-| `adr/0005-casehub-integration-is-optional.md` | Claudony dependency boundary rule |
-| `~/claude/casehub/adr/0001-claudony-is-not-a-dependency.md` | CaseHub dependency boundary rule |
-| `~/claude/quarkus-qhorus/` | Qhorus repo — all changes on main |
-| `~/claude/casehub/` | CaseHub repo — next implementation target |
+| `docs/superpowers/plans/2026-04-23-claudony-casehub.md` | Full 7-task implementation plan |
+| `docs/superpowers/specs/2026-04-23-claudony-casehub-design.md` | Design spec |
+| `.worktrees/claudony-casehub/` | WIP worktree on `feature/claudony-casehub` |
+| `~/claude/quarkus-ledger/` | 0.2-SNAPSHOT, commit 69a19f5 has @PersistenceUnit fix |
+| `~/claude/quarkus-qhorus/` | runtime/pom.xml updated to ledger 0.2-SNAPSHOT |
