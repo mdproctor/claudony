@@ -41,6 +41,14 @@
       <id>central</id>
       <url>https://repo.maven.apache.org/maven2</url>
     </repository>
+    <repository>
+      <id>github</id>
+      <name>casehubio GitHub Packages</name>
+      <url>https://maven.pkg.github.com/casehubio/*</url>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
   </repositories>
 
   <pluginRepositories>

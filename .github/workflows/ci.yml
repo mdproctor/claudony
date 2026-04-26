@@ -21,7 +21,7 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          server-id: github-casehubio
+          server-id: github
           server-username: GITHUB_ACTOR
           server-password: GITHUB_TOKEN
 
