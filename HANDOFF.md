@@ -1,42 +1,40 @@
 # Handover — 2026-04-29
 
-**Head commit:** `dce90d1` — blog entry + CLAUDE.md update  
+**Head commit:** `868972a` — blog entry + CLAUDE.md update  
 **Branch:** `main`, pushed to origin
 
 ---
 
 ## What happened this session
 
-**Issue #76 — Case worker panel — closed.**
+**Brief session — market positioning discussion, then two production bug fixes.**
 
-`Session` record expanded from 8 to 10 fields: `Optional<String> caseId` and `roleName` appended after `expiryPolicy`. 20+ construction sites updated across three modules. `withStatus()`/`withLastActive()` propagate both fields. `SessionResponse` exposes them as nullable JSON (NON_NULL — absent for standalone sessions).
+Positioning: Claudony isn't a terminal emulator. The three-panel dashboard is what differentiates it from CLI wrapper UIs. Even at minimum viable, the codebase is a running reference architecture for CaseHub + Qhorus + Claudony integration.
 
-`SessionRegistry.findByCaseId(String)` — filters by caseId, sorted by `createdAt` (provisioning order = worker sequence).
+**Issue #95 — ClaudonyLedgerEventCapture bugs — closed (commit `51db35a`).**
 
-`GET /api/sessions?caseId=xxx` — local-only filter, bypasses federation.
+Two production bugs found via external audit (cross-ref casehubio/quarkus-ledger#72):
 
-`ClaudonyWorkerProvisioner.provision()` stamps `context.caseId()` and `roleName` on the Session.
+**Bug a — silent exception swallowing:** `catch(Exception e)` around `em.persist()`/`em.flush()` was logging and returning normally on any DB failure. Fix: removed the try/catch entirely. `casehub-engine` never had one.
 
-`session.html` three-panel layout: case workers `<aside>` left, terminal centre, channel panel right. "Workers" toggle button in header.
+**Bug b — sequence number race:** `MAX(sequenceNumber) + 1` is unsafe under concurrent writes — two threads reading the same MAX before either commits produce silent duplicate sequence numbers. No unique constraint on `(subject_id, sequence_number)` exists — the index name `idx_ledger_entry_subject_seq` misleads. Fix: `ORDER BY sequenceNumber DESC / setMaxResults(1) / findFirst()` — matches casehub-engine's pattern, uses the index.
 
-`terminal.js` case panel: fetch session on init → auto-expand if caseId present → poll `/api/sessions?caseId=` every 3s → render worker rows with status dots → click-to-switch WebSocket + `history.replaceState`. Memory-safe: interval cleared on panel close and `beforeunload`.
+`ClaudonyLedgerEventCaptureTest` added: 6 tests — happy path fields, sequence increment per case, sequence independence, null guards (2), worker event type.
 
-**PlaywrightBase fix:** `BASE_URL` was hardcoded `"http://localhost:8081"`. With `quarkus.http.test-port=0`, this caused pre-existing ChannelPanelE2ETest failures (2+6 errors with old code, improved to 1+2 with our fix). Fixed to `ConfigProvider.getConfig().getValue("test.url", String.class)` — Quarkus sets `test.url` after server startup.
-
-**Incidental fix:** `ClaudonyLedgerEventCapture` — `actorType` now resolves from coalesced `entry.actorId` (Refs #53).
+**CLAUDE.md corrected:** GitHub repo was `mdproctor/claudony` — actual remote is `casehubio/claudony`.
 
 ---
 
 ## Test count
 
-**419 tests** (119 claudony-casehub + 300 claudony-app), 0 failures. Up from 409 — 10 new tests (Tasks 1–6 unit/integration) + 3 new Playwright E2E.
+**425 tests** (119 claudony-casehub + 306 claudony-app), 0 failures.
 
 ---
 
 ## Open epics
 
 **Epic #75 — Three-panel dashboard:**
-- #76 ✅ Left panel: case worker panel (closed this session)
+- #76 ✅ Left panel: case worker panel (closed last session)
 - #77 — Right panel: task detail + Qhorus channel (no external blockers)
 
 **Other open:** #93 (concurrent same-role workers — upstream engine change needed)
@@ -45,7 +43,7 @@
 
 ## Immediate next
 
-**#77** — Right panel: CaseHub task detail + Qhorus channel in one side panel. Likely needs a new REST endpoint exposing task/goal data from CaseHub, plus wiring the existing channel panel into the right-panel position when a case worker is selected.
+**#77** — Right panel: CaseHub task detail + Qhorus channel in one side panel. Needs a new REST endpoint exposing task/goal data from CaseHub, plus wiring the existing channel panel into the right-panel position when a case worker is selected.
 
 ---
 
@@ -53,12 +51,7 @@
 
 | Path | What |
 |---|---|
-| `claudony-core/src/main/java/dev/claudony/server/model/Session.java` | +caseId, +roleName fields |
-| `claudony-core/src/main/java/dev/claudony/server/SessionRegistry.java` | +findByCaseId() |
-| `claudony-app/src/main/java/dev/claudony/server/model/SessionResponse.java` | +caseId, +roleName nullable |
-| `claudony-app/src/main/java/dev/claudony/server/SessionResource.java` | +?caseId= filter |
-| `claudony-casehub/src/main/java/dev/claudony/casehub/ClaudonyWorkerProvisioner.java` | stamps caseId + roleName |
-| `claudony-app/src/main/resources/META-INF/resources/app/session.html` | three-panel layout |
-| `claudony-app/src/main/resources/META-INF/resources/app/terminal.js` | case panel logic |
-| `claudony-app/src/test/java/dev/claudony/e2e/PlaywrightBase.java` | BASE_URL via ConfigProvider |
-| `claudony-app/src/test/java/dev/claudony/e2e/CaseWorkerPanelE2ETest.java` | 3 Playwright E2E tests |
+| `claudony-casehub/src/main/java/dev/claudony/casehub/ClaudonyLedgerEventCapture.java` | try/catch removed; nextSequenceNumber() uses ORDER BY DESC pattern |
+| `claudony-app/src/test/java/dev/claudony/casehub/ClaudonyLedgerEventCaptureTest.java` | new — 6 tests for the above |
+
+*Prior session key files — `git show HEAD~3:HANDOFF.md`*
