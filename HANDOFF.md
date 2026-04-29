@@ -1,44 +1,43 @@
-# Handover — 2026-04-28
+# Handover — 2026-04-29
 
-**Head commit:** `318f64b` — CaseEngine event→ledger→lineage round-trip test  
-**Branch:** `main` (uncommitted: CLAUDE.md only — being committed with this handover)
+**Head commit:** `dce90d1` — blog entry + CLAUDE.md update  
+**Branch:** `main`, pushed to origin
 
 ---
 
 ## What happened this session
 
-**Epic #86 — Agent mesh infrastructure fully shipped:**
+**Issue #76 — Case worker panel — closed.**
 
-**#87 (CaseChannelLayout SPI):** `CaseChannelLayout` interface + `ChannelSpec`, `NormativeChannelLayout` (work/observe/oversight), `SimpleLayout` (work/observe), `CaseChannelLayout.named()` factory. `ClaudonyCaseChannelProvider` refactored to init-on-first-touch per-case cache. Config: `claudony.casehub.channel-layout=normative|simple`.
+`Session` record expanded from 8 to 10 fields: `Optional<String> caseId` and `roleName` appended after `expiryPolicy`. 20+ construction sites updated across three modules. `withStatus()`/`withLastActive()` propagate both fields. `SessionResponse` exposes them as nullable JSON (NON_NULL — absent for standalone sessions).
 
-**#88 (MeshParticipationStrategy SPI):** `MeshParticipationStrategy` + 3 impls (Active/Reactive/Silent). `ClaudonyWorkerContextProvider` stamps `"meshParticipation"` in every `WorkerContext`. Config: `claudony.casehub.mesh-participation=active|reactive|silent`.
+`SessionRegistry.findByCaseId(String)` — filters by caseId, sorted by `createdAt` (provisioning order = worker sequence).
 
-**#89 (System prompt template):** `MeshSystemPromptTemplate` — ACTIVE full template (channels, STARTUP, prior workers, message discipline), REACTIVE reduced (no oversight, no startup registration), SILENT → `Optional.empty()`. Stored in `WorkerContext.properties["systemPrompt"]`. `CaseChannelLayout.named()` extracted to eliminate `selectLayout()` duplication.
+`GET /api/sessions?caseId=xxx` — local-only filter, bypasses federation.
 
-**#91 (Playwright channel panel E2E):** `ChannelPanelE2ETest` — 8 tests covering toggle, dropdown, timeline, type badges, human sender, dock post, cursor polling, Ctrl+K.
+`ClaudonyWorkerProvisioner.provision()` stamps `context.caseId()` and `roleName` on the Session.
 
-**#92 (CaseEngine round-trip):** `ClaudonyLedgerEventCapture` — `@ObservesAsync CaseLifecycleEvent` → writes `CaseLedgerEntry`. `JpaCaseLineageQuery` changed to `@Transactional(SUPPORTS)` (safe from IO thread). `CaseEngineRoundTripTest` fires `CaseLifecycleEvent` directly and verifies via `JpaCaseLineageQuery`. `CaseLineageQueryIntegrationTest` (in claudony-app) tests full JPA stack.
+`session.html` three-panel layout: case workers `<aside>` left, terminal centre, channel panel right. "Workers" toggle button in header.
 
-**Platform composability diagnosis:** casehub-engine no-op SPI beans are `@ApplicationScoped` (should be `@DefaultBean`) — collide with Claudony implementations when engine is indexed. Vert.x event-bus handlers lack `@Blocking` — JPA from IO thread fails. 6 garden entries submitted.
+`terminal.js` case panel: fetch session on init → auto-expand if caseId present → poll `/api/sessions?caseId=` every 3s → render worker rows with status dots → click-to-switch WebSocket + `history.replaceState`. Memory-safe: interval cleared on panel close and `beforeunload`.
+
+**PlaywrightBase fix:** `BASE_URL` was hardcoded `"http://localhost:8081"`. With `quarkus.http.test-port=0`, this caused pre-existing ChannelPanelE2ETest failures (2+6 errors with old code, improved to 1+2 with our fix). Fixed to `ConfigProvider.getConfig().getValue("test.url", String.class)` — Quarkus sets `test.url` after server startup.
+
+**Incidental fix:** `ClaudonyLedgerEventCapture` — `actorType` now resolves from coalesced `entry.actorId` (Refs #53).
 
 ---
 
 ## Test count
 
-**409 tests** (118 claudony-casehub + 291 claudony-app), 0 failures.
+**419 tests** (119 claudony-casehub + 300 claudony-app), 0 failures. Up from 409 — 10 new tests (Tasks 1–6 unit/integration) + 3 new Playwright E2E.
 
 ---
 
 ## Open epics
 
-**Epic #86 — all Claudony-side issues closed.** Upstream items filed:
-- casehub-engine no-op beans should be `@DefaultBean` (not `@ApplicationScoped`)
-- casehub-engine Vert.x handlers need `@Blocking` for JPA consumers
-
 **Epic #75 — Three-panel dashboard:**
-- #76 — Left panel: CaseHub case graph (needs `caseId` on Session model)
-- #77 — Right panel: task detail + Qhorus channel
-- #91 — ✅ Playwright E2E for channel panel (closed this session)
+- #76 ✅ Left panel: case worker panel (closed this session)
+- #77 — Right panel: task detail + Qhorus channel (no external blockers)
 
 **Other open:** #93 (concurrent same-role workers — upstream engine change needed)
 
@@ -46,9 +45,7 @@
 
 ## Immediate next
 
-**#76** — Left panel: add optional `caseId` field to `Session` model + `SessionRegistry`. This unblocks the full three-panel dashboard. No external blockers.
-
-OR: **#84/#85** — CaseHub-level wizard/template generator (future, epic #84).
+**#77** — Right panel: CaseHub task detail + Qhorus channel in one side panel. Likely needs a new REST endpoint exposing task/goal data from CaseHub, plus wiring the existing channel panel into the right-panel position when a case worker is selected.
 
 ---
 
@@ -56,8 +53,12 @@ OR: **#84/#85** — CaseHub-level wizard/template generator (future, epic #84).
 
 | Path | What |
 |---|---|
-| `claudony-casehub/src/main/java/dev/claudony/casehub/ClaudonyLedgerEventCapture.java` | New: CDI event → ledger writer |
-| `claudony-casehub/src/main/java/dev/claudony/casehub/JpaCaseLineageQuery.java` | Changed: `@Transactional(SUPPORTS)` on `findCompletedWorkers()` |
-| `claudony-app/src/test/java/dev/claudony/CaseEngineRoundTripTest.java` | New: event→ledger→lineage round-trip |
-| `claudony-app/src/test/java/dev/claudony/e2e/ChannelPanelE2ETest.java` | New: 8 Playwright channel panel tests |
-| `docs/superpowers/specs/2026-04-27-claudony-agent-mesh-framework.md` | Mesh framework spec — all 3 SPIs documented |
+| `claudony-core/src/main/java/dev/claudony/server/model/Session.java` | +caseId, +roleName fields |
+| `claudony-core/src/main/java/dev/claudony/server/SessionRegistry.java` | +findByCaseId() |
+| `claudony-app/src/main/java/dev/claudony/server/model/SessionResponse.java` | +caseId, +roleName nullable |
+| `claudony-app/src/main/java/dev/claudony/server/SessionResource.java` | +?caseId= filter |
+| `claudony-casehub/src/main/java/dev/claudony/casehub/ClaudonyWorkerProvisioner.java` | stamps caseId + roleName |
+| `claudony-app/src/main/resources/META-INF/resources/app/session.html` | three-panel layout |
+| `claudony-app/src/main/resources/META-INF/resources/app/terminal.js` | case panel logic |
+| `claudony-app/src/test/java/dev/claudony/e2e/PlaywrightBase.java` | BASE_URL via ConfigProvider |
+| `claudony-app/src/test/java/dev/claudony/e2e/CaseWorkerPanelE2ETest.java` | 3 Playwright E2E tests |
