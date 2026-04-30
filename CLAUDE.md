@@ -437,6 +437,8 @@ cd docs && bundle exec jekyll serve --baseurl ""
 - **All commits should reference an issue** — `Refs #N` (ongoing) or `Closes #N` (done).
   If the user explicitly says to skip ("commit as is", "no issue"), ask once to confirm
   before proceeding — it must be a deliberate choice, not a default.
+  **Exception:** housekeeping commits (consistency passes, doc fixes, dependency bumps, health-check fixes) may omit issue links when no issue naturally applies. These should still use conventional commit format: `docs:`, `chore:`, `fix(deps):`, etc.
+  **Commit scope examples:** `fix(auth): ...`, `feat(mcp): ...`, `docs(design): ...`, `chore(deps): ...`, `test(e2e): ...`, `refactor(sessions): ...`
 
 ## Ecosystem Conventions
 
