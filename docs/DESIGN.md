@@ -216,7 +216,7 @@ Claude → POST /mcp → McpServer.dispatch()
 | Component | Technology |
 |-----------|-----------|
 | Runtime | Java 21 API (compiled on Java 26 JVM) |
-| Framework | Quarkus 3.9.5 |
+| Framework | Quarkus 3.32.2 |
 | Native image | GraalVM 25 (native-image) |
 | Terminal multiplexer | tmux |
 | Terminal emulator (browser) | xterm.js |
@@ -294,7 +294,7 @@ Claudony uses a named datasource `qhorus` (configured via `quarkus.datasource.qh
 quarkus.datasource.qhorus.db-kind=h2
 quarkus.datasource.qhorus.jdbc.url=jdbc:h2:file:~/.claudony/qhorus;...
 quarkus.hibernate-orm.qhorus.datasource=qhorus
-quarkus.hibernate-orm.qhorus.packages=io.quarkiverse.qhorus.runtime,io.quarkiverse.ledger.runtime.model,io.casehub.ledger.model
+quarkus.hibernate-orm.qhorus.packages=io.casehub.qhorus.runtime,io.casehub.ledger.runtime.model,io.casehub.ledger.model
 quarkus.flyway.qhorus.migrate-at-start=true
 ```
 
@@ -308,9 +308,9 @@ Schema versioning is **Flyway-managed** — `database.generation` (Hibernate's a
 
 ## Testing
 
-**419 tests passing** (as of 2026-04-28, all modules). Three layers:
+**425 tests passing** (as of 2026-04-29, all modules). Three layers:
 - **Unit tests** — plain JUnit, no Quarkus container; stateful beans use `resetForTest()` + `@AfterEach`
-- **Integration tests** (`@QuarkusTest`) — full Quarkus context; all `@QuarkusTest` classes share one app instance; Qhorus data uses `InMemory*Store` implementations (from `quarkus-qhorus-testing` dependency), no real database needed
+- **Integration tests** (`@QuarkusTest`) — full Quarkus context; all `@QuarkusTest` classes share one app instance; Qhorus data uses `InMemory*Store` implementations (from `casehub-qhorus-testing` dependency), no real database needed
 - **E2E tests** — assert tmux session state (pane content, session existence), not Claude's output; LLM output is non-deterministic, tmux state is not
 
 **Test cleanup pattern (Qhorus data):** Use `@Inject InMemoryChannelStore` and `@Inject InMemoryMessageStore`, then call `clear()` in `@AfterEach` to reset state between tests. This replaces the earlier `UserTransaction` + Panache pattern and works with the InMemory store implementations.
@@ -327,7 +327,7 @@ Schema versioning is **Flyway-managed** — `database.generation` (Hibernate's a
 
 ## Ecosystem Integration
 
-> Claudony is the integration layer in a three-project Quarkus Native AI Agent Ecosystem alongside **CaseHub** (orchestration/choreography engine, `~/claude/casehub/engine`) and **Qhorus** (agent communication mesh, `~/claude/quarkus-qhorus`). The canonical ecosystem design document lives at `docs/superpowers/specs/2026-04-13-quarkus-ai-ecosystem-design.md`.
+> Claudony is the integration layer in a three-project Quarkus Native AI Agent Ecosystem alongside **CaseHub** (orchestration/choreography engine, `~/claude/casehub/engine`) and **Qhorus** (agent communication mesh, `~/claude/casehub/qhorus`). The canonical ecosystem design document lives at `docs/superpowers/specs/2026-04-13-quarkus-ai-ecosystem-design.md`.
 
 ### CaseHub SPIs — Shipped
 
@@ -350,7 +350,7 @@ All four CaseHub worker SPIs are implemented in the `claudony-casehub` module (e
 
 Qhorus is embedded as a Maven dependency. Its MCP tools join the Agent's MCP endpoint alongside Claudony's session tools. The named datasource `qhorus` (H2, `~/.claudony/qhorus`) is shared by Qhorus entities, the quarkus-ledger schema, and `CaseLedgerEntry` — all Flyway-managed.
 
-**Store SPI:** Six interfaces (`ChannelStore`, `MessageStore`, `SharedDataStore`, `InstanceStore`, `SharedDataIndexStore`, `PendingReplyStore`) — JPA in production, InMemory (`quarkus-qhorus-testing`) in tests.
+**Store SPI:** Six interfaces (`ChannelStore`, `MessageStore`, `SharedDataStore`, `InstanceStore`, `SharedDataIndexStore`, `PendingReplyStore`) — JPA in production, InMemory (`casehub-qhorus-testing`) in tests.
 
 **Design constraint:** `McpServer` currently dispatches a hardcoded tool set. It must become composable (CDI `Instance<McpToolProvider>` or similar) before additional tool sources can be added cleanly.
 

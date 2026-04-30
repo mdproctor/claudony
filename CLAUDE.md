@@ -29,7 +29,7 @@ https://raw.githubusercontent.com/casehubio/casehub-parent/main/docs/repos/claud
 
 **Type:** java
 
-**Stack:** Java 21 (on Java 26 JVM), Quarkus 3.9.5, GraalVM 25 (native image), tmux, xterm.js
+**Stack:** Java 21 (on Java 26 JVM), Quarkus 3.32.2, GraalVM 25 (native image), tmux, xterm.js
 
 ---
 
