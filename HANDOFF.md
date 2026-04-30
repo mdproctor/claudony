@@ -1,57 +1,63 @@
-# Handover — 2026-04-29
+# Handover — 2026-04-30
 
-**Head commit:** `868972a` — blog entry + CLAUDE.md update  
+**Head commit:** `de790fd` — chore: java-project-health tier-4 fixes  
 **Branch:** `main`, pushed to origin
 
 ---
 
 ## What happened this session
 
-**Brief session — market positioning discussion, then two production bug fixes.**
+**Maintenance and consistency session — no feature work.**
 
-Positioning: Claudony isn't a terminal emulator. The three-panel dashboard is what differentiates it from CLI wrapper UIs. Even at minimum viable, the codebase is a running reference architecture for CaseHub + Qhorus + Claudony integration.
+**Org publishing strategy locked in:** casehub components stay in casehubio org, not submitted to Quarkiverse. Documented in CLAUDE.md and memory so it stops resurfacing.
 
-**Issue #95 — ClaudonyLedgerEventCapture bugs — closed (commit `51db35a`).**
+**Consistency pass** (commits `2562c5d`–`5af398c`, `807c6ee`): DESIGN.md stale package names (`io.quarkiverse.qhorus.*` → `io.casehub.*`), Quarkus version (`3.9.5` → `3.32.2`), Qhorus path, artifact names. CLAUDE.md Stack field corrected. All docs aligned.
 
-Two production bugs found via external audit (cross-ref casehubio/ledger#72):
+**workspace-init skill updated** (pushed to `github.com/mdproctor/cc-praxis`): new Step 1a detects project families — checks for existing `~/claude/private/<parent>/` folder and sibling git repos — and offers nested workspace path (`~/claude/private/casehub/claudony/`) instead of flat.
 
-**Bug a — silent exception swallowing:** `catch(Exception e)` around `em.persist()`/`em.flush()` was logging and returning normally on any DB failure. Fix: removed the try/catch entirely. `casehub-engine` never had one.
+**java-project-health tier 4** — 17 findings, all fixed (commit `de790fd`):
+- `casehub.version` property in root pom; all casehub deps now BOM-managed, no inline versions
+- Duplicate `awaitility` removed from claudony-app/pom.xml
+- `ObjectMapper` static final field in `SessionResource` (was per-call `new ObjectMapper()`)
+- Optional config properties (`default-working-dir`, `credentials-file`, etc.) added as commented examples to `application.properties`
+- "Virtual Threads and Blocking I/O" subsection added to DESIGN.md
+- Issue-linkage exception policy + commit scope examples added to CLAUDE.md
+- `smallrye.config.mapping.validate-unknown=false` in test properties (SRCFG00050 workaround — casehub-qhorus SNAPSHOT bundles `application.properties` with unmapped properties; Quarkus 3.32.2 rejects them at augmentation, surfacing as a misleading classloader failure)
+- BUGS-AND-ODDITIES entry #20 added for the above
 
-**Bug b — sequence number race:** `MAX(sequenceNumber) + 1` is unsafe under concurrent writes — two threads reading the same MAX before either commits produce silent duplicate sequence numbers. No unique constraint on `(subject_id, sequence_number)` exists — the index name `idx_ledger_entry_subject_seq` misleads. Fix: `ORDER BY sequenceNumber DESC / setMaxResults(1) / findFirst()` — matches casehub-engine's pattern, uses the index.
-
-`ClaudonyLedgerEventCaptureTest` added: 6 tests — happy path fields, sequence increment per case, sequence independence, null guards (2), worker event type.
-
-**CLAUDE.md corrected:** GitHub repo was `mdproctor/claudony` — actual remote is `casehubio/claudony`.
+Garden entry submitted: `GE-20260430-ef928c` — SRCFG00050 classloader symptom.
 
 ---
 
 ## Test count
 
-**425 tests** (119 claudony-casehub + 306 claudony-app), 0 failures.
+*Unchanged — `git show HEAD~5:HANDOFF.md`*
 
 ---
 
 ## Open epics
 
-**Epic #75 — Three-panel dashboard:**
-- #76 ✅ Left panel: case worker panel (closed last session)
-- #77 — Right panel: task detail + Qhorus channel (no external blockers)
-
-**Other open:** #93 (concurrent same-role workers — upstream engine change needed)
+*Unchanged — `git show HEAD~5:HANDOFF.md`*
 
 ---
 
 ## Immediate next
 
-**#77** — Right panel: CaseHub task detail + Qhorus channel in one side panel. Needs a new REST endpoint exposing task/goal data from CaseHub, plus wiring the existing channel panel into the right-panel position when a case worker is selected.
+**#77** — Right panel: CaseHub task detail + Qhorus channel. Brainstorming was started (existing channel panel explored, REST endpoints mapped) but paused for this maintenance session. Resume with the brainstorming skill — context needs rebuilding since the session was interrupted.
 
 ---
 
 ## Key files
 
+*Prior session fixes — `git show HEAD~5:HANDOFF.md`*
+
 | Path | What |
 |---|---|
-| `claudony-casehub/src/main/java/dev/claudony/casehub/ClaudonyLedgerEventCapture.java` | try/catch removed; nextSequenceNumber() uses ORDER BY DESC pattern |
-| `claudony-app/src/test/java/dev/claudony/casehub/ClaudonyLedgerEventCaptureTest.java` | new — 6 tests for the above |
-
-*Prior session key files — `git show HEAD~3:HANDOFF.md`*
+| `pom.xml` | +casehub.version property, all casehub deps in dependencyManagement |
+| `claudony-app/pom.xml` | duplicate awaitility removed, casehub deps version-managed |
+| `claudony-casehub/pom.xml` | inline dependencyManagement removed, version-managed from root |
+| `claudony-app/src/main/resources/application.properties` | commented optional properties |
+| `claudony-app/src/test/resources/application.properties` | +smallrye.config.mapping.validate-unknown=false |
+| `claudony-app/src/main/java/dev/claudony/server/SessionResource.java` | ObjectMapper static field |
+| `docs/DESIGN.md` | Virtual Threads section, test count → CLAUDE.md reference |
+| `docs/BUGS-AND-ODDITIES.md` | +entry #20 SRCFG00050 |
