@@ -122,6 +122,20 @@ Expiry logic is pluggable via the `ExpiryPolicy` CDI interface:
 
 Global default: `claudony.session-expiry-policy=user-interaction`. Per-session override via `CreateSessionRequest.expiryPolicy`. On expiry: `SessionExpiredEvent` CDI event fired first (WebSocket observer sends `{"type":"session-expired"}` to any connected clients on a virtual thread), then tmux session killed and registry entry removed — only if kill succeeds. `session.lastActive` is bumped by `SessionRegistry.touch()` on: WebSocket open (after pipe-pane setup), WebSocket input, REST `POST /api/sessions/{id}/input`.
 
+### Virtual Threads and Blocking I/O
+
+Claudony uses blocking I/O throughout — ProcessBuilder for tmux, Socket for health checks, FIFO reads for terminal streaming. The threading model that makes this safe:
+
+| Context | Thread model | Blocking I/O? |
+|---|---|---|
+| REST endpoints (`@Path`) | Quarkus default executor (not event loop) | ✅ Safe — no `@Blocking` needed |
+| WebSocket `onOpen()` setup | WebSocket handler (not Vert.x event loop) | ✅ Safe — short-lived ProcessBuilder calls |
+| FIFO streaming | Explicit `Thread.ofVirtual().start(...)` | ✅ Safe — virtual thread owns the read loop |
+| Service health checks | `Executors.newVirtualThreadPerTaskExecutor()` | ✅ Safe — parallel virtual threads |
+| Vert.x event handlers (if added) | Vert.x event loop | ❌ Must use non-blocking API only |
+
+**Rule:** Code on the Vert.x event loop must use non-blocking API or `@Blocking`. REST resources and WebSocket handlers are not on the event loop — blocking I/O there is safe by default.
+
 ### MCP Transport: HTTP JSON-RPC
 
 The Agent exposes `POST /mcp` as a synchronous JSON-RPC endpoint. Claude Code connects to it as an MCP server via `--mcp-config`. HTTP transport is GraalVM-native compatible — no stdio subprocess needed. The `mcpServers` wrapper key in the config file is required (matches the `settings.json` schema); omitting it produces a silent schema validation error — no session is created.
@@ -298,7 +312,7 @@ quarkus.hibernate-orm.qhorus.packages=io.casehub.qhorus.runtime,io.casehub.ledge
 quarkus.flyway.qhorus.migrate-at-start=true
 ```
 
-**CDI exclusion:** `casehub-ledger` ships `CaseLedgerEntryRepository` and `CaseLedgerEventCapture` as CDI beans that conflict with the `LedgerEntryRepository` already enabled by `quarkus-ledger`. These are excluded via `quarkus.arc.exclude-types`; only `CaseLedgerEntry` (the JPA entity) is used — by `JpaCaseLineageQuery` in `claudony-casehub`.
+**CDI exclusion:** `casehub-ledger` ships `CaseLedgerEntryRepository` and `CaseLedgerEventCapture` as CDI beans that conflict with the `LedgerEntryRepository` already enabled by `casehub-ledger`. These are excluded via `quarkus.arc.exclude-types`; only `CaseLedgerEntry` (the JPA entity) is used — by `JpaCaseLineageQuery` in `claudony-casehub`.
 
 Schema versioning is **Flyway-managed** — `database.generation` (Hibernate's auto-DDL) is not used. All Qhorus entities are in the `qhorus` persistence unit and route to Flyway for migrations.
 
@@ -308,7 +322,7 @@ Schema versioning is **Flyway-managed** — `database.generation` (Hibernate's a
 
 ## Testing
 
-**425 tests passing** (as of 2026-04-29, all modules). Three layers:
+Current test count is tracked in CLAUDE.md (authoritative source). Three layers:
 - **Unit tests** — plain JUnit, no Quarkus container; stateful beans use `resetForTest()` + `@AfterEach`
 - **Integration tests** (`@QuarkusTest`) — full Quarkus context; all `@QuarkusTest` classes share one app instance; Qhorus data uses `InMemory*Store` implementations (from `casehub-qhorus-testing` dependency), no real database needed
 - **E2E tests** — assert tmux session state (pane content, session existence), not Claude's output; LLM output is non-deterministic, tmux state is not
@@ -342,13 +356,13 @@ All four CaseHub worker SPIs are implemented in the `claudony-casehub` module (e
 
 **Lineage:** `JpaCaseLineageQuery` (`@Alternative @Priority(1)`) queries `case_ledger_entry` for `WORKER_EXECUTION_COMPLETED` events via the `qhorus` persistence unit. Returns empty until casehub-engine fires worker lifecycle `CaseLifecycleEvent`s — currently missing (tracked upstream).
 
-**CDI wiring:** `casehub-ledger`'s own CDI beans (`CaseLedgerEntryRepository`, `CaseLedgerEventCapture`) are excluded via `quarkus.arc.exclude-types` to avoid `LedgerEntryRepository` ambiguity with quarkus-ledger. Only `CaseLedgerEntry` (the JPA entity) is used directly.
+**CDI wiring:** `casehub-ledger`'s own CDI beans (`CaseLedgerEntryRepository`, `CaseLedgerEventCapture`) are excluded via `quarkus.arc.exclude-types` to avoid `LedgerEntryRepository` ambiguity with casehub-ledger. Only `CaseLedgerEntry` (the JPA entity) is used directly.
 
 **Design constraint:** `TmuxService` and `SessionRegistry` remain unaware of CaseHub. SPI implementations are the sole coupling point.
 
 ### Qhorus — Shipped
 
-Qhorus is embedded as a Maven dependency. Its MCP tools join the Agent's MCP endpoint alongside Claudony's session tools. The named datasource `qhorus` (H2, `~/.claudony/qhorus`) is shared by Qhorus entities, the quarkus-ledger schema, and `CaseLedgerEntry` — all Flyway-managed.
+Qhorus is embedded as a Maven dependency. Its MCP tools join the Agent's MCP endpoint alongside Claudony's session tools. The named datasource `qhorus` (H2, `~/.claudony/qhorus`) is shared by Qhorus entities, the casehub-ledger schema, and `CaseLedgerEntry` — all Flyway-managed.
 
 **Store SPI:** Six interfaces (`ChannelStore`, `MessageStore`, `SharedDataStore`, `InstanceStore`, `SharedDataIndexStore`, `PendingReplyStore`) — JPA in production, InMemory (`casehub-qhorus-testing`) in tests.
 
