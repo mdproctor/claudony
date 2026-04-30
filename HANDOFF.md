@@ -13,7 +13,7 @@ Positioning: Claudony isn't a terminal emulator. The three-panel dashboard is wh
 
 **Issue #95 — ClaudonyLedgerEventCapture bugs — closed (commit `51db35a`).**
 
-Two production bugs found via external audit (cross-ref casehubio/quarkus-ledger#72):
+Two production bugs found via external audit (cross-ref casehubio/ledger#72):
 
 **Bug a — silent exception swallowing:** `catch(Exception e)` around `em.persist()`/`em.flush()` was logging and returning normally on any DB failure. Fix: removed the try/catch entirely. `casehub-engine` never had one.
 

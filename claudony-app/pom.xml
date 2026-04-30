@@ -47,14 +47,14 @@
     </dependency>
     <!-- Qhorus agent communication mesh — auto-registers 39 @Tool methods at /mcp -->
     <dependency>
-      <groupId>io.quarkiverse.qhorus</groupId>
-      <artifactId>quarkus-qhorus</artifactId>
+      <groupId>io.casehub</groupId>
+      <artifactId>casehub-qhorus</artifactId>
       <version>0.2-SNAPSHOT</version>
     </dependency>
     <!-- Qhorus testing support — InMemory*Store alternatives for unit tests -->
     <dependency>
-      <groupId>io.quarkiverse.qhorus</groupId>
-      <artifactId>quarkus-qhorus-testing</artifactId>
+      <groupId>io.casehub</groupId>
+      <artifactId>casehub-qhorus-testing</artifactId>
       <version>0.2-SNAPSHOT</version>
       <scope>test</scope>
     </dependency>
