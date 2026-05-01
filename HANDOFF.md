@@ -1,42 +1,39 @@
 # Handover — 2026-05-01
 
-**Head commit:** `7428f56` — docs: session handover 2026-04-30
+**Head commit:** `673a4c5` — docs: add blog entry 2026-05-01-mdp02
 **Branch:** `main`, pushed to origin
 
 ---
 
 ## What happened this session
 
-**Design analysis session — no code changes.**
+**#77 shipped end-to-end.** Case context panel: role/status/elapsed header, collapsible lineage (polling `GET /api/sessions/{id}/lineage` every 60s), channel auto-select to `case-{caseId}/work`. All 119 casehub + 310 app tests green. 28 E2E tests pass.
 
-**Context rebuild for #77:** explored existing channel panel (fully built — timeline polling, human send, `chLastId` tracking), workers panel, `MeshResource`, `CaseLineageQuery`/`JpaCaseLineageQuery`, and `WorkerSummary` to understand what's already in place.
+**Three upstream API migrations bundled:**
+- `WorkerContext.channel` → `channels (List<CaseChannel>)` — casehub-engine commit 73fda63
+- `WorkerContextProvider.buildContext` 2-arg → 3-arg `(workerId, caseId, task)` — engine PR #224
+- Qhorus `sendMessage`/`createChannel` — non-@Tool overloads made package-private; all call sites updated to 9-arg public signatures
 
-**Qhorus gateway architectural update:** the Qhorus team added detailed design decisions to casehubio/qhorus#131 since the last handover — Claudony as a Qhorus *participant* (not a layer above), incremental implementation sequence (QhorusChannelBackend → ClaudonyChannelBackend → Slack → WhatsApp), and confirmation that `ClaudonyCaseChannelProvider` is the right starting point for the gateway switch.
+**MCP tool pagination fix (#105 filed):** quarkus-mcp-server defaults to `tools/list` page-size=50, silently dropping tools alphabetically beyond position 50. Fixed with `quarkus.mcp.server.tools.page-size=0`. Long-term: separate endpoints (issue #105).
 
-**Push model stress-test:** identified 7 maturity concerns with switching from polling to push:
+**Messaging conventions fixed (#106):**
+- EVENT feed renderer now shows `tool_name`/`duration_ms`/`token_count` (EVENT content is null by design)
+- `NormativeChannelLayout.allowedTypes` now passed to Qhorus on channel creation — oversight channel enforces QUERY+COMMAND at infrastructure level
+- Interjection dock default: `event` → `command`
+- Dock type options filtered dynamically to channel's permitted types on channel select
 
-1. Polling catches up automatically; push silently drops on backend outage — needs client-side catch-up (`?after=lastId`) or gateway retry
-2. Claudony restart loses backend registrations — `ServerStartup` bootstrap pattern should re-register
-3. Fleet gap — only the registering node receives pushed messages
-4. Human identity lost through Claudony's proxy — needs structured supplement before gateway hardens
-5. `postToChannel` always sends `"status"` — SPI gap in casehub-engine, needs nullable `MessageType` param
-6. SSE for case state (replaces 3-second worker poll) — separate improvement
-7. Gateway delivery guarantee (Qhorus-internal) — tiered policy per backend
+**Playwright robustness fixes:**
+- `<option>` in `<select>` → use `WaitForSelectorState.ATTACHED` not default visible
+- `standaloneSession_noCaseHeader` uses `waitForLoadState(NETWORKIDLE)` instead of fixed timeout
+- `interjectionDock` explicitly selects `status` type (EVENT content is null now)
 
-**Issues created:**
-- claudony #99 (maturity epic), #100–104
-- casehubio/engine #221 (MessageType SPI)
-- casehubio/qhorus #132 (delivery guarantee)
-
-All issues include sequencing notes: **none block #77, all are clean retrofits after end-to-end is proven.**
-
-**Blog entry:** `docs/blog/2026-05-01-mdp01-what-polling-was-hiding.md`
+**Garden sweep:** 5 entries submitted (quarkus-mcp-server 50-tool cap, Playwright option visibility, Qhorus testing module staleness, javap+jandex diagnosis technique, quarkus.mcp.server.tools.page-size undocumented).
 
 ---
 
 ## Test count
 
-*Unchanged — `git show HEAD~1:HANDOFF.md`*
+**428 tests** (119 casehub + 310 app) + 28 E2E (separate -Pe2e run). Previous: 425.
 
 ---
 
@@ -44,13 +41,20 @@ All issues include sequencing notes: **none block #77, all are clean retrofits a
 
 *Unchanged for existing epics — `git show HEAD~1:HANDOFF.md`*
 
-**New:** claudony #99 — channel gateway integration maturity (7 child issues, all deferred post-#77)
+**Closed:** #77 — case context panel shipped.
+
+**New:** #106 — messaging conventions (closed same session). #105 — separate MCP endpoints (open, long-term).
 
 ---
 
 ## Immediate next
 
-**#77** — Right panel: CaseHub task detail + Qhorus channel. No brainstorming session was held this session either — start fresh with brainstorming skill. Context is now solid: the existing channel panel already handles timeline + human send; `JpaCaseLineageQuery` already returns prior workers; no REST endpoint for lineage exists yet. The panel needs a case-context header (role, status, elapsed) + lineage section above the existing channel feed. Build with polling; gateway retrofit comes later.
+No active feature in flight. Good candidates:
+- **#98** — `ClaudonyChannelBackend` gateway registration (replaces channel panel polling with push; depends on casehubio/qhorus#131)
+- **#104** — SSE for case state (replaces 3-second worker list poll)
+- **#105** — separate MCP endpoints (splits Claudony and Qhorus tools; prerequisite: Qhorus standalone MCP)
+
+Recommend: let the other repos (qhorus#131) settle first, then pick up #98 as the next significant piece.
 
 ---
 
