@@ -1,63 +1,59 @@
-# Handover — 2026-04-30
+# Handover — 2026-05-01
 
-**Head commit:** `de790fd` — chore: java-project-health tier-4 fixes  
+**Head commit:** `7428f56` — docs: session handover 2026-04-30
 **Branch:** `main`, pushed to origin
 
 ---
 
 ## What happened this session
 
-**Maintenance and consistency session — no feature work.**
+**Design analysis session — no code changes.**
 
-**Org publishing strategy locked in:** casehub components stay in casehubio org, not submitted to Quarkiverse. Documented in CLAUDE.md and memory so it stops resurfacing.
+**Context rebuild for #77:** explored existing channel panel (fully built — timeline polling, human send, `chLastId` tracking), workers panel, `MeshResource`, `CaseLineageQuery`/`JpaCaseLineageQuery`, and `WorkerSummary` to understand what's already in place.
 
-**Consistency pass** (commits `2562c5d`–`5af398c`, `807c6ee`): DESIGN.md stale package names (`io.quarkiverse.qhorus.*` → `io.casehub.*`), Quarkus version (`3.9.5` → `3.32.2`), Qhorus path, artifact names. CLAUDE.md Stack field corrected. All docs aligned.
+**Qhorus gateway architectural update:** the Qhorus team added detailed design decisions to casehubio/qhorus#131 since the last handover — Claudony as a Qhorus *participant* (not a layer above), incremental implementation sequence (QhorusChannelBackend → ClaudonyChannelBackend → Slack → WhatsApp), and confirmation that `ClaudonyCaseChannelProvider` is the right starting point for the gateway switch.
 
-**workspace-init skill updated** (pushed to `github.com/mdproctor/cc-praxis`): new Step 1a detects project families — checks for existing `~/claude/private/<parent>/` folder and sibling git repos — and offers nested workspace path (`~/claude/private/casehub/claudony/`) instead of flat.
+**Push model stress-test:** identified 7 maturity concerns with switching from polling to push:
 
-**java-project-health tier 4** — 17 findings, all fixed (commit `de790fd`):
-- `casehub.version` property in root pom; all casehub deps now BOM-managed, no inline versions
-- Duplicate `awaitility` removed from claudony-app/pom.xml
-- `ObjectMapper` static final field in `SessionResource` (was per-call `new ObjectMapper()`)
-- Optional config properties (`default-working-dir`, `credentials-file`, etc.) added as commented examples to `application.properties`
-- "Virtual Threads and Blocking I/O" subsection added to DESIGN.md
-- Issue-linkage exception policy + commit scope examples added to CLAUDE.md
-- `smallrye.config.mapping.validate-unknown=false` in test properties (SRCFG00050 workaround — casehub-qhorus SNAPSHOT bundles `application.properties` with unmapped properties; Quarkus 3.32.2 rejects them at augmentation, surfacing as a misleading classloader failure)
-- BUGS-AND-ODDITIES entry #20 added for the above
+1. Polling catches up automatically; push silently drops on backend outage — needs client-side catch-up (`?after=lastId`) or gateway retry
+2. Claudony restart loses backend registrations — `ServerStartup` bootstrap pattern should re-register
+3. Fleet gap — only the registering node receives pushed messages
+4. Human identity lost through Claudony's proxy — needs structured supplement before gateway hardens
+5. `postToChannel` always sends `"status"` — SPI gap in casehub-engine, needs nullable `MessageType` param
+6. SSE for case state (replaces 3-second worker poll) — separate improvement
+7. Gateway delivery guarantee (Qhorus-internal) — tiered policy per backend
 
-Garden entry submitted: `GE-20260430-ef928c` — SRCFG00050 classloader symptom.
+**Issues created:**
+- claudony #99 (maturity epic), #100–104
+- casehubio/engine #221 (MessageType SPI)
+- casehubio/qhorus #132 (delivery guarantee)
+
+All issues include sequencing notes: **none block #77, all are clean retrofits after end-to-end is proven.**
+
+**Blog entry:** `docs/blog/2026-05-01-mdp01-what-polling-was-hiding.md`
 
 ---
 
 ## Test count
 
-*Unchanged — `git show HEAD~5:HANDOFF.md`*
+*Unchanged — `git show HEAD~1:HANDOFF.md`*
 
 ---
 
 ## Open epics
 
-*Unchanged — `git show HEAD~5:HANDOFF.md`*
+*Unchanged for existing epics — `git show HEAD~1:HANDOFF.md`*
+
+**New:** claudony #99 — channel gateway integration maturity (7 child issues, all deferred post-#77)
 
 ---
 
 ## Immediate next
 
-**#77** — Right panel: CaseHub task detail + Qhorus channel. Brainstorming was started (existing channel panel explored, REST endpoints mapped) but paused for this maintenance session. Resume with the brainstorming skill — context needs rebuilding since the session was interrupted.
+**#77** — Right panel: CaseHub task detail + Qhorus channel. No brainstorming session was held this session either — start fresh with brainstorming skill. Context is now solid: the existing channel panel already handles timeline + human send; `JpaCaseLineageQuery` already returns prior workers; no REST endpoint for lineage exists yet. The panel needs a case-context header (role, status, elapsed) + lineage section above the existing channel feed. Build with polling; gateway retrofit comes later.
 
 ---
 
 ## Key files
 
-*Prior session fixes — `git show HEAD~5:HANDOFF.md`*
-
-| Path | What |
-|---|---|
-| `pom.xml` | +casehub.version property, all casehub deps in dependencyManagement |
-| `claudony-app/pom.xml` | duplicate awaitility removed, casehub deps version-managed |
-| `claudony-casehub/pom.xml` | inline dependencyManagement removed, version-managed from root |
-| `claudony-app/src/main/resources/application.properties` | commented optional properties |
-| `claudony-app/src/test/resources/application.properties` | +smallrye.config.mapping.validate-unknown=false |
-| `claudony-app/src/main/java/dev/claudony/server/SessionResource.java` | ObjectMapper static field |
-| `docs/DESIGN.md` | Virtual Threads section, test count → CLAUDE.md reference |
-| `docs/BUGS-AND-ODDITIES.md` | +entry #20 SRCFG00050 |
+*Unchanged — `git show HEAD~1:HANDOFF.md`*
