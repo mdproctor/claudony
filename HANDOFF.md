@@ -1,39 +1,35 @@
-# Handover — 2026-05-01
+# Handover — 2026-05-02
 
-**Head commit:** `673a4c5` — docs: add blog entry 2026-05-01-mdp02
-**Branch:** `main`, pushed to origin
+**Head commit:** `e380bc6` — chore(casehub): remove buildContext bridge
+**Branch:** `main`, CI green (upstream-published chain completed 02:02 UTC)
+
+---
+
+## Workflow convention (new)
+
+**All Claudony work goes on a fork. PRs target casehubio/claudony.** Direct pushes to casehubio/claudony main are no longer the working pattern.
 
 ---
 
 ## What happened this session
 
-**#77 shipped end-to-end.** Case context panel: role/status/elapsed header, collapsible lineage (polling `GET /api/sessions/{id}/lineage` every 60s), channel auto-select to `case-{caseId}/work`. All 119 casehub + 310 app tests green. 28 E2E tests pass.
+*Previous session content — `git show HEAD~1:HANDOFF.md`*
 
-**Three upstream API migrations bundled:**
-- `WorkerContext.channel` → `channels (List<CaseChannel>)` — casehub-engine commit 73fda63
-- `WorkerContextProvider.buildContext` 2-arg → 3-arg `(workerId, caseId, task)` — engine PR #224
-- Qhorus `sendMessage`/`createChannel` — non-@Tool overloads made package-private; all call sites updated to 9-arg public signatures
+**CI red → green post-session fix:**
 
-**MCP tool pagination fix (#105 filed):** quarkus-mcp-server defaults to `tools/list` page-size=50, silently dropping tools alphabetically beyond position 50. Fixed with `quarkus.mcp.server.tools.page-size=0`. Long-term: separate endpoints (issue #105).
+After wrapping, CI was broken because `ClaudonyWorkerContextProvider` implements `buildContext(String, UUID, WorkRequest)` but the published `casehub-engine-api` still had the old 2-arg `buildContext(String, WorkRequest)` interface. Root cause: the engine had lost the 3-arg change — it wasn't in any published PR. The engine team restored it in commit `32b1263` ("feat: expose WorkerContext.channels() via WorkerExecutionContext thread-local"), which also adds `WorkerExecutionContext` — a thread-local holder that gives worker functions access to their case's channels during execution.
 
-**Messaging conventions fixed (#106):**
-- EVENT feed renderer now shows `tool_name`/`duration_ms`/`token_count` (EVENT content is null by design)
-- `NormativeChannelLayout.allowedTypes` now passed to Qhorus on channel creation — oversight channel enforces QUERY+COMMAND at infrastructure level
-- Interjection dock default: `event` → `command`
-- Dock type options filtered dynamically to channel's permitted types on channel select
+Once the engine published, the `upstream-published` chain triggered Claudony CI automatically and it went green at 02:02 UTC. No Claudony code change was needed — `e380bc6` was already correct.
 
-**Playwright robustness fixes:**
-- `<option>` in `<select>` → use `WaitForSelectorState.ATTACHED` not default visible
-- `standaloneSession_noCaseHeader` uses `waitForLoadState(NETWORKIDLE)` instead of fixed timeout
-- `interjectionDock` explicitly selects `status` type (EVENT content is null now)
+**Engine's `WorkerExecutionContext` (new, from `32b1263`):** thread-local set by `QuartzWorkerExecutionJob` immediately before invoking the worker function. Workers can call `WorkerExecutionContext.current()` inside their function to get their `WorkerContext` including the open case channels. This is the mechanism that will let workers post to channels from inside their function body without needing the channels passed as parameters.
 
-**Garden sweep:** 5 entries submitted (quarkus-mcp-server 50-tool cap, Playwright option visibility, Qhorus testing module staleness, javap+jandex diagnosis technique, quarkus.mcp.server.tools.page-size undocumented).
+**qhorus#131 context:** the generalised Channel abstraction design — backend-agnostic messaging (Slack, WhatsApp, Matrix, local DB as interchangeable transports), gateway that persists to history store. This is what #98 (ClaudonyChannelBackend) depends on. Currently open/unstarted on the Qhorus side.
 
 ---
 
 ## Test count
 
-**428 tests** (119 casehub + 310 app) + 28 E2E (separate -Pe2e run). Previous: 425.
+*Unchanged — `git show HEAD~1:HANDOFF.md`*
 
 ---
 
@@ -41,20 +37,16 @@
 
 *Unchanged for existing epics — `git show HEAD~1:HANDOFF.md`*
 
-**Closed:** #77 — case context panel shipped.
-
-**New:** #106 — messaging conventions (closed same session). #105 — separate MCP endpoints (open, long-term).
-
 ---
 
 ## Immediate next
 
 No active feature in flight. Good candidates:
-- **#98** — `ClaudonyChannelBackend` gateway registration (replaces channel panel polling with push; depends on casehubio/qhorus#131)
-- **#104** — SSE for case state (replaces 3-second worker list poll)
-- **#105** — separate MCP endpoints (splits Claudony and Qhorus tools; prerequisite: Qhorus standalone MCP)
+- **#104** — SSE for case state (replaces 3-second worker list poll; self-contained, no dependencies)
+- **#98** — `ClaudonyChannelBackend` gateway registration (push to channel panel; depends on casehubio/qhorus#131)
+- **#105** — separate MCP endpoints (splits Claudony and Qhorus tools; long-term)
 
-Recommend: let the other repos (qhorus#131) settle first, then pick up #98 as the next significant piece.
+Recommend #104 as the next standalone piece while waiting for qhorus#131.
 
 ---
 
